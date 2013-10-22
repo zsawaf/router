@@ -29,26 +29,6 @@
  * Initialize the routing subsystem
  *
  *---------------------------------------------------------------------*/
-unsigned short checksum(struct ip *ip, int len){
-    long sum = 0;  /* assume 32 bit long, 16 bit short */
-
-    while(len > 1){
-      sum += *((unsigned short*) ip)++;
-      if(sum & 0x80000000)   /* if high order bit set, fold */
-        sum = (sum & 0xFFFF) + (sum >> 16);
-      len -= 2;
-    }
-
-    if(len) {      /* take care of left over byte */
-      sum += (unsigned short) *(unsigned char *)ip;
-    }
-    
-    while(sum>>16) {
-      sum = (sum & 0xFFFF) + (sum >> 16);
-    }
-
-    return ~sum;
-}
 
 
 void sr_init(struct sr_instance* sr)
@@ -99,11 +79,9 @@ void sr_handlepacket(struct sr_instance* sr,
 
   printf("*** -> Received packet of length %d \n",len);
 
+  print_hdrs(packet, len);
+
   /* fill in code here */
-
-  // Sanity check. Meet minimum packet length and use the checksum. 
-
-  // Decrement the TTL by 1, and recompute the packet checksum over the modified header. 
 
 
 }/* end sr_ForwardPacket */

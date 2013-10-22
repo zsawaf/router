@@ -18,6 +18,60 @@
 */
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
     /* Fill this in */
+    /* Key idea here is that we have to iterate through each request in arpreq struct 
+     * and call arp_cache_handler on them. 
+     */
+
+     // WHAT IS SR_INSTANCE???
+     struct sr_arpreq *arpreq = sr->cache.requests;
+
+     while(arpreq){ //is not empty
+        handle_arpreq(sr, arpreq);
+        arpreq = arpreq->next; // get the next request
+     }
+}
+
+/*
+ * Handle the arp request, send request is necessary. 
+ */
+void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
+
+    time_t now = time(NULL); /* initialize current time */
+    time_t sent = arpreq->sent; /* initialize time the req is sent. */ 
+    if (difftime(now, sent) > 1.0){
+        if (arpreq->times_sent >= 5.0){
+            //send icmp host unreachable to source addr of all pkts waiting 
+            // on this request
+            send_unreachable(sr, arpreq);
+
+            arpreq_destroy(&sr->cache, arpreq);
+        }
+        else {
+            send_arpreq(sr, arpreq);
+            arpreq->sent = now;
+            arpreq->times_sent++;
+        }
+
+    }
+}
+
+/*
+* Send that mofo
+*/
+void send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
+
+    // Do a cache look up. 
+    sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
+    if(entry){
+        //use next_hop_ip->mac mapping in entry to send the packet
+        
+        //free entry
+    }
+    else {
+        //arpreq = arpcache_queuereq(next_hop_ip, packet, len)
+       
+        handle_arpreq(sr, arpreq)
+    }
 }
 
 /* You should not need to touch the rest of this code. */
