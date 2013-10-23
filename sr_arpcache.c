@@ -42,17 +42,24 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
         if (arpreq->times_sent >= 5.0){
             //send icmp host unreachable to source addr of all pkts waiting 
             // on this request
-            send_unreachable(sr, arpreq);
+            sr_send_unreachable(sr, arpreq);
 
             arpreq_destroy(&sr->cache, arpreq);
         }
         else {
-            send_arpreq(sr, arpreq);
+            sr_send_arpreq(sr, arpreq);
             arpreq->sent = now;
             arpreq->times_sent++;
         }
 
     }
+}
+
+/*
+* Handle code where it sends unreachable. 
+*/
+void sr_send_unreachable(sr_instance *sr, struct sr_arpreq *arpreq){
+
 }
 
 /*
@@ -63,14 +70,15 @@ void send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
     // Do a cache look up. 
     sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
     if(entry){
+        printf("The MAC address is: %s", entry->mac);
         //use next_hop_ip->mac mapping in entry to send the packet
         
         //free entry
     }
     else {
-        //arpreq = arpcache_queuereq(next_hop_ip, packet, len)
+        //arpreq = arpcache_queuereq(next_hop_ip, packet, len);
        
-        handle_arpreq(sr, arpreq)
+        handle_arpreq(sr, arpreq);
     }
 }
 
