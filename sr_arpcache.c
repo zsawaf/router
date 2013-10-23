@@ -50,7 +50,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
      /*is not empty*/
      while(arpreq){ 
         handle_arpreq(sr, arpreq);
-        arpreq = arpreq->next; // get the next request
+        arpreq = arpreq->next; /*get the next request*/
      }
 }
 
@@ -67,15 +67,14 @@ void sr_send_unreachable(struct sr_instance *sr, struct sr_arpreq *arpreq){
 void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
 
     /*Do a cache look up. */
-    sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
+    struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
     if(entry){
-        printf("The MAC address is: %s", entry->mac);
-        //use next_hop_ip->mac mapping in entry to send the packet
+        /*use next_hop_ip->mac mapping in entry to send the packet*/
         
-        //free entry
+        /*free entry*/
     }
     else {
-        //arpreq = arpcache_queuereq(next_hop_ip, packet, len);
+        /*arpreq = arpcache_queuereq(next_hop_ip, packet, len);*/
        
         handle_arpreq(sr, arpreq);
     }
