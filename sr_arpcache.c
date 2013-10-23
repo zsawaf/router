@@ -21,7 +21,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
     if (difftime(now, sent) > 1.0){
         if (arpreq->times_sent >= 5.0){
 
-            //sr_send_unreachable(sr, arpreq);
+            /*sr_send_unreachable(sr, arpreq);*/
 
             sr_arpreq_destroy(&sr->cache, arpreq);
         }
@@ -47,7 +47,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 
      struct sr_arpreq *arpreq = sr->cache.requests;
 
-     //is not empty
+     /*is not empty*/
      while(arpreq){ 
         handle_arpreq(sr, arpreq);
         arpreq = arpreq->next; // get the next request
@@ -57,7 +57,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 /*
 * Handle code where it sends unreachable. 
 */
-void sr_send_unreachable(sr_instance *sr, struct sr_arpreq *arpreq){
+void sr_send_unreachable(struct sr_instance *sr, struct sr_arpreq *arpreq){
 
 }
 
@@ -66,7 +66,7 @@ void sr_send_unreachable(sr_instance *sr, struct sr_arpreq *arpreq){
 */
 void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
 
-    // Do a cache look up. 
+    /*Do a cache look up. */
     sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
     if(entry){
         printf("The MAC address is: %s", entry->mac);
