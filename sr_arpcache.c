@@ -20,11 +20,10 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
     time_t sent = arpreq->sent; /* initialize time the req is sent. */ 
     if (difftime(now, sent) > 1.0){
         if (arpreq->times_sent >= 5.0){
-            //send icmp host unreachable to source addr of all pkts waiting 
-            // on this request
+            
             sr_send_unreachable(sr, arpreq);
 
-            arpreq_destroy(&sr->cache, arpreq);
+            sr_arpreq_destroy(&sr->cache, arpreq);
         }
         else {
             sr_send_arpreq(sr, arpreq);
@@ -48,7 +47,8 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 
      struct sr_arpreq *arpreq = sr->cache.requests;
 
-     while(arpreq){ //is not empty
+     //is not empty
+     while(arpreq){ 
         handle_arpreq(sr, arpreq);
         arpreq = arpreq->next; // get the next request
      }
