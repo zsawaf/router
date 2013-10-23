@@ -148,4 +148,6 @@ int   sr_arpcache_destroy(struct sr_arpcache *cache);
 void *sr_arpcache_timeout(void *cache_ptr);
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq);
 
+void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq);
+
 #endif
