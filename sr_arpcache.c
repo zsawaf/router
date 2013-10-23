@@ -71,7 +71,7 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
     if(entry){
         /*use next_hop_ip->mac mapping in entry to send the packet*/
         /* maybe we need to start with packets->next*/
-        struct sr_packet packets = arp_req->packets;
+        struct sr_packet packets = arpreq->packets;
         while (packets){
             /* Send packet */
             sr_send_packet(sr, packets->buf, packets->len, packets->iface);
