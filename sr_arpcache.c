@@ -70,7 +70,7 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
     struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
     if(entry){
         /*use next_hop_ip->mac mapping in entry to send the packet*/
-        
+        printf("MAC address is %c", entry->mac);
         /*free entry*/
     }
     else {
