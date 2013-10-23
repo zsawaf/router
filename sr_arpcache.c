@@ -70,7 +70,19 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
     struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
     if(entry){
         /*use next_hop_ip->mac mapping in entry to send the packet*/
-        printf("MAC address is %c", entry->mac);
+        /* maybe we need to start with packets->next*/
+        struct sr_packet packets = arp_request->packets;
+        while (packets){
+            /* Send packet */
+            sr_send_packet(sr, packets->buf, packets->len, packets->iface);
+
+            /*Destroy and free the packet memory*/
+            struct sr_packet new_packet = packets->next;
+            free(packets->buf);
+            free(packets->len);
+            free(packets->iface);
+            packets = new_packet;
+        }
         /*free entry*/
     }
     else {
