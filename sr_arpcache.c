@@ -79,7 +79,7 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
             /*Destroy and free the packet memory*/
             struct sr_packet *new_packet = packets->next;
             free(packets->buf);
-            free(packets->len);
+            free(&packets->len);
             free(packets->iface);
             packets = new_packet;
         }
