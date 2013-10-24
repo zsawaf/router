@@ -8,6 +8,7 @@
 #include <string.h>
 #include "sr_arpcache.h"
 #include "sr_router.h"
+#include "sr_rt.h"
 #include "sr_if.h"
 #include "sr_protocol.h"
 
@@ -41,18 +42,19 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
 struct sr_rt * sr_seach_ip_prfx(struct sr_instance * sr, uint32_t ip){
     struct sr_rt * curr_rt = sr->routing_table;
     struct sr_rt * res_rt = NULL;
+    uint32_t subnetwork;
 
     /* Iterate through curr_rt's linked list and find the best match */
     while(curr_rt){
-        uint32_t subnetwork = curr_rt->mask.s_addr & curr_rt->dest.s_addr;
+        subnetwork =  curr_rt->dest.s_addr & curr_rt->mask.s_addr;
         /* Now we do the IP match up */
-        if (subnetwork == (curr_rt->mask.s_addr & ip)){
+        if (subnetwork == (ip & curr_rt->mask.s_addr)){
             /* fill out first time */
             if(!res_rt){
                 res_rt = curr_rt;
             }
             else{
-                if(ntohl(res_rt->mask.s_addr) < ntohl(curr->mask.s_addr)) {
+                if(ntohl(res_rt->mask.s_addr) < ntohl(curr_rt->mask.s_addr)) {
                     res_rt = curr_rt;
                 }
             }
@@ -71,26 +73,26 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
     time_t now = time(NULL);
 
     /* Build up parameters for request */
-    uint8_t *buf = (uint8_t *)malloc(SR_ETH_HDR_LEN + SR_ARP_HDR_LEN);
+    uint8_t *buf = (uint8_t *) malloc(SR_ETH_HDR_LEN + SR_ARP_HDR_LEN);
 
     /* build hdrs */
-    struct sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) buf;
+    sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) buf;
 
     /* Move pointer forward SR_ETH_HDR bits */
-    struct sr_arp_hdr_t * arp_hdr = (sr_ethernet_hdr_t *) (buf + SR_ETH_HDR_LEN);
+    sr_arp_hdr_t * arp_hdr = (sr_arp_hdr_t *) (buf + SR_ETH_HDR_LEN);
 
     /* We need to get the interface, therefore we need to do an IP lookup. */
     struct sr_rt *matched = sr_search_ip_prfx(sr, arpreq->ip);
-    const char name = matched->interface;
-    struct sr_rt *rt = sr_get_interface(sr, name);
+    const char *name = matched->interface;
+    struct sr_if *interface = sr_get_interface(sr, name);
     
-    unsigned char * ifaceaddr = sr_rt->addr;
-    uint32_t *ifaceip- = sr_rt->ip;
+    unsigned char * ifaceaddr = interface->addr;
+    uint32_t ifaceip = interface->ip;
 
     /* make a new eth_hdr struct and populate */
     eth_hdr->ether_type = ethertype_arp;
     memcpy(eth_hdr->ether_dhost, ARP_MAC_BROADCAST, ETHER_ADDR_LEN);
-    memcpy(eth_hdr->ether_shost, ifaceip, ETHER_ADDR_LEN);
+    memcpy(eth_hdr->ether_shost, ifaceaddr, ETHER_ADDR_LEN);
     
     /* make an arp_hdr and populate */
 
@@ -98,7 +100,7 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
     arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
     arp_hdr->ar_pro = htons(ip_protocol_icmp); /*not sure*/
     arp_hdr->ar_hln = ETHER_ADDR_LEN;
-    arp_hrd->arp_ln = ip_hl;
+    arp_hdr->ar_pln = 4; /* change later lulz*/
     arp_hdr->ar_op = arp_op_request;
     memcpy(arp_hdr->ar_sha, ifaceaddr, ETHER_ADDR_LEN);
     arp_hdr->ar_sip = ifaceip;
@@ -106,7 +108,7 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
     arp_hdr->ar_tip = arpreq->ip;
 
     /* SEND THE PACKET */
-    sr_send_packet(sr, buf, (SR_ETH_HDR_LEN + SR_ARP_HDR_LEN), rt->name);
+    sr_send_packet(sr, buf, (SR_ETH_HDR_LEN + SR_ARP_HDR_LEN), interface->name);
 
     free(buf);
     arpreq->sent = now;

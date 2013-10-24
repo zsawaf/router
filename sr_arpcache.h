@@ -70,13 +70,15 @@
 #include <time.h>
 #include <pthread.h>
 #include "sr_if.h"
+#include "sr_protocol.h"
+#include "sr_rt.h"
 
 #define SR_ARPCACHE_SZ    100  
 #define SR_ARPCACHE_TO    15.0
 #define SR_ARP_MAXSEND    5.0
 #define SR_ARP_MAXDIF     1.0
-#define SR_ETH_HDR_LEN    sizeof(sr_ethernet_hdr_t);
-#define SR_ARP_HDR_LEN    sizeof(sr_arp_hdr_t);
+#define SR_ETH_HDR_LEN    sizeof(sr_ethernet_hdr_t)
+#define SR_ARP_HDR_LEN    sizeof(sr_arp_hdr_t)
 
 struct sr_packet {
     uint8_t *buf;               /* A raw Ethernet frame, presumably with the dest MAC empty */
