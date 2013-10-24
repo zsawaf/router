@@ -11,9 +11,12 @@
  *
  **********************************************************************/
 
+#include <string.h>
 #include <stdio.h>
 #include <assert.h>
-
+#include <stdlib.h>
+#include <time.h>
+#include <unistd.h>
 
 #include "sr_if.h"
 #include "sr_rt.h"
@@ -143,17 +146,17 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
     if_name = prefix_match->interface;
     interface = sr_get_interface(sr, if_name);
     
-    if_addr; = interface->addr;
+    if_addr = interface->addr;
     if_ip = interface->ip;
 
     /* make a new eth_hdr struct and populate */
-    eth_hdr = (sr_ethernet_hdr_t *) buf;
+    eth_hdr = (sr_ethernet_hdr_t *) buffer;
     eth_hdr->ether_type = ethertype_arp;
     memcpy(eth_hdr->ether_dhost, ARP_MAC_BROADCAST, ETHER_ADDR_LEN);
-    memcpy(eth_hdr->ether_shost, ifaceaddr, ETHER_ADDR_LEN);
+    memcpy(eth_hdr->ether_shost, if_addr, ETHER_ADDR_LEN);
     
     /* Move pointer forward SR_ETH_HDR bits & init ARP header */
-    arp_hdr = (sr_arp_hdr_t *) (buf + SR_ETH_HDR_LEN);
+    arp_hdr = (sr_arp_hdr_t *) (buffer + SR_ETH_HDR_LEN);
 
     /* populate the ARP header fields */
     arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
@@ -161,8 +164,8 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
     arp_hdr->ar_hln = ETHER_ADDR_LEN;
     arp_hdr->ar_pln = 4; /* change later lulz, ip_hl not workin qq*/
     arp_hdr->ar_op = arp_op_request;
-    memcpy(arp_hdr->ar_sha, ifaceaddr, ETHER_ADDR_LEN);
-    arp_hdr->ar_sip = ifaceip;
+    memcpy(arp_hdr->ar_sha, if_addr, ETHER_ADDR_LEN);
+    arp_hdr->ar_sip = if_ip;
     memcpy(arp_hdr->ar_tha, ARP_MAC_BROADCAST, ETHER_ADDR_LEN);
     arp_hdr->ar_tip = arpreq->ip;
 
@@ -203,7 +206,6 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
     else {
         /*arpreq = arpcache_queuereq(next_hop_ip, packet, len);*/
        
-        handle_arpreq(sr, arpreq);
     }
 }
 

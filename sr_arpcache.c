@@ -8,11 +8,7 @@
 #include <string.h>
 #include "sr_arpcache.h"
 #include "sr_router.h"
-#include "sr_rt.h"
-#include "sr_if.h"
 #include "sr_protocol.h"
-
-static const uint8_t ARP_MAC_BROADCAST [ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 /* looping constants */
 #define SR_ARP_MAXSEND    5.0
@@ -21,7 +17,7 @@ static const uint8_t ARP_MAC_BROADCAST [ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xF
  * Handle the arp request, send request is necessary. 
  */
 
-void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
+void proc_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
 
     time_t now = time(NULL); /* initialize current time */
     time_t sent = arpreq->sent; /* initialize time the req is sent. */ 
@@ -39,7 +35,6 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
     }
 }
 
-
 /* 
   This function gets called every second. For each request sent out, we keep
   checking whether we should resend an request or destroy the arp request.
@@ -55,7 +50,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
 
      /*is not empty*/
      while(arpreq){ 
-        handle_arpreq(sr, arpreq);
+        proc_arpreq(sr, arpreq);
         arpreq = arpreq->next; /*get the next request*/
      }
 }
