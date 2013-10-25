@@ -80,18 +80,116 @@ void sr_handlepacket(struct sr_instance* sr,
   assert(sr);
   assert(packet);
   assert(interface);
-
+  
   printf("*** -> Received packet of length %d \n",len);
-
-  print_hdrs(packet, len);
-
+  print_hdrs(packet,len);
   /* fill in code here */
+  
 
+  /*GET THE PROTOCOL OF THE ETHERNET PACKET*/
+  uint16_t ethprotocol = ntohs(((sr_ethernet_hdr_t*)packet)->ether_type);
+  
+  printf("-----\nProtocol : 0x%04x\n",ethprotocol);
+  
+  if(ethprotocol == ethertype_arp){
+    printf("Packet protocol is ARP\n-----\n");
+    /*Handle ARP PACKET*/
+    handle_arp(sr,packet);
+  }
+  else
+    if(ethprotocol == ethertype_ip)
+      {printf("Packet protocol is IP\n-----\n");
+    handle_ip(sr,packet);
+      }
+}/* end sr_ForwardPacket */
+void handle_ip(struct sr_instance* sr,uint8_t * packet)
+{
+  sr_ip_hdr_t* ipPacket = (sr_ip_hdr_t*)(packet+sizeof(sr_ethernet_hdr_t));
+  uint8_t protocol = ipPacket -> ip_p;
+  printf("---------------------------------\n");
+  printf("Protocol is %d\n",protocol);
+  if(protocol==1)
+    {
+      /*Handle ICMP packet*/
+      printf("ICMP ");
+    }
 
+  printf("---------------------------------\n");
+  
 }/* end sr_ForwardPacket */
 
 
 /* --------- Helper Functions ------ */
+void handle_arp(struct sr_instance* sr,uint8_t * packet)
+{
+  sr_arp_hdr_t* arpPacket = (sr_arp_hdr_t*)(packet+sizeof(sr_ethernet_hdr_t));   
+  uint32_t tip = ntohl(arpPacket -> ar_tip); print_addr_ip_int(tip);
+  
+  unsigned short arp_type = ntohs(arpPacket -> ar_op); 
+  printf("Operation is %d\n",arp_type);
+  struct sr_if* interface = findInterface(tip,sr);
+   printf("---------------------------------\n");
+  if(interface)
+    {
+      printf("Request matches Interface\n");
+      if(arp_type==1)
+    {
+      uint8_t * reply = generate_arp_reply(arpPacket,interface->ip,interface->addr);
+     
+      int sent = sr_send_packet(sr,reply,sizeof(sr_ethernet_hdr_t)+sizeof(sr_arp_hdr_t),interface->name);
+    
+      printf("Trying to send the ARP reply :\n");
+      print_hdrs(reply,sizeof(sr_ethernet_hdr_t)+sizeof(sr_arp_hdr_t));
+    
+      if(sent)
+       printf("ARP reply not sent, an error occured.\n");
+     else
+       printf("ARP reply successfully sent.\n");
+    }
+      else
+    if(arp_type==2)
+      {/*HANDLE REPLY*/}
+        else
+          printf("Invalid operation type");
+      }
+  else
+    printf("Does not match any interface | Ignore the packet");
+   
+      printf("---------------------------------\n");
+  
+}
+/*------------------------------------------------------------------------------------*/
+void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const uint8_t* sender, uint16_t type)
+{
+  memcpy(((sr_ethernet_hdr_t*)reply)->ether_dhost, destination, ETHER_ADDR_LEN);
+  memcpy(((sr_ethernet_hdr_t*)reply)->ether_shost, sender, ETHER_ADDR_LEN);
+  ((sr_ethernet_hdr_t*)reply)->ether_type = htons(type);
+}
+
+/*
+*
+*/
+uint8_t * generate_arp_reply(sr_arp_hdr_t * request,uint32_t ip,unsigned char* mac)
+{
+  uint8_t * reply = (uint8_t *) malloc(sizeof(sr_ethernet_hdr_t)+sizeof(sr_arp_hdr_t));
+ 
+  create_ethernet_header(reply,request->ar_sha,mac,ethertype_arp);
+  sr_arp_hdr_t * arp_reply = (sr_arp_hdr_t*) (reply + sizeof(sr_ethernet_hdr_t));
+  
+  arp_reply->ar_op = htons(arp_op_reply);
+  
+  memcpy(arp_reply->ar_sha, mac, ETHER_ADDR_LEN);
+  memcpy(arp_reply->ar_tha, request->ar_sha, ETHER_ADDR_LEN);
+  arp_reply->ar_sip = ip;
+  arp_reply->ar_tip = request->ar_sip ;
+  arp_reply->ar_pro=ntohs(ethertype_ip);
+  arp_reply->ar_hrd=ntohs(arp_hrd_ethernet);
+  arp_reply->ar_hln=6;
+  arp_reply->ar_pln=4;
+ 
+  return reply;
+
+}
 
 /*
 * Return the longest prefix match for 'ip'
@@ -120,6 +218,18 @@ struct sr_rt * sr_search_ip_prfx(struct sr_instance * sr, uint32_t ip){
         curr_rt = curr_rt->next;
     }
     return res_rt;
+}
+
+struct sr_if* findInterface(uint32_t ip,struct sr_instance* sr)
+{
+ struct sr_if* iflist = sr->if_list;
+    while(iflist)
+      {
+    if(ip==ntohl(iflist -> ip))
+      return iflist;
+    iflist = iflist -> next;
+      }
+    return 0;
 }
 
 /*
