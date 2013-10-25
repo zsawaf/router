@@ -73,6 +73,10 @@
 
 #define SR_ARPCACHE_SZ    100  
 #define SR_ARPCACHE_TO    15.0
+#define SR_ARP_MAXSEND    5.0
+#define SR_ARP_MAXDIF     1.0
+#define SR_ETH_HDR_LEN    sizeof(sr_ethernet_hdr_t);
+#define SR_ARP_HDR_LEN    sizeof(sr_arp_hdr_t);
 
 struct sr_packet {
     uint8_t *buf;               /* A raw Ethernet frame, presumably with the dest MAC empty */
@@ -149,5 +153,10 @@ void *sr_arpcache_timeout(void *cache_ptr);
 void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq);
 
 void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq);
+
+struct sr_rt * sr_search_ip_prfx(struct sr_instance * sr, uint32_t ip);
+
+void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq);
+
 
 #endif
