@@ -29,6 +29,7 @@
  * Initialize the routing subsystem
  *
  *---------------------------------------------------------------------*/
+static const uint8_t ARP_MAC_BROADCAST [ETHER_ADDR_LEN] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
 
 void sr_init(struct sr_instance* sr)
@@ -134,7 +135,6 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
     unsigned char * if_addr;
     uint32_t if_ip; 
 
-
     /* Build up parameters for request */
     buffer = (uint8_t *) malloc(SR_ETH_HDR_LEN + SR_ARP_HDR_LEN);
 
@@ -168,10 +168,10 @@ void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
 
     /* SEND THE PACKET */
     sr_send_packet(sr, buffer, (SR_ETH_HDR_LEN + SR_ARP_HDR_LEN), interface->name);
-
-    /* clean up, record the time & update # of times sent */
-    free(buffer);
     now = time(NULL);
+
+    /* clean up, save the time & update # of times sent */
+    free(buffer);
     arpreq->sent = now;
     arpreq->times_sent++;
 }
