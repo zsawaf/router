@@ -129,6 +129,7 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
       else {
 	printf("Handling table entry miss! \n");
 	printf("Got the request, do a reverse IP lookup.\n");
+	struct sr_if *
 	const char * interface = sr_search_ip_prfx(sr, arp_hdr->ip_src)->interface;
 	struct sr_if *struct_interface = sr_get_interface(sr, interface);
 	uint8_t *request = generate_arp_request(arp_hdr->ip_src, ip, struct_interface->addr);
