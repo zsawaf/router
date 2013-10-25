@@ -76,6 +76,8 @@ int sr_read_from_server(struct sr_instance* );
 void sr_init(struct sr_instance* );
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
 
+
+
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );
 void sr_set_ether_ip(struct sr_instance* , uint32_t );
@@ -86,6 +88,12 @@ void sr_print_if_list(struct sr_instance* );
 struct sr_rt * sr_search_ip_prfx(struct sr_instance * sr, uint32_t ip);
 void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq);
 void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq);
+void handle_ip(struct sr_instance* sr,uint8_t * packet);
+void handle_arp(struct sr_instance* sr,uint8_t * packet);
+void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const uint8_t* sender, uint16_t type);
+uint8_t * generate_arp_reply(sr_arp_hdr_t * request,uint32_t ip,unsigned char* mac);
+struct sr_if* findInterface(uint32_t ip,struct sr_instance* sr);
+
 
 
 #endif /* SR_ROUTER_H */

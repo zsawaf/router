@@ -134,7 +134,7 @@ void handle_arp(struct sr_instance* sr,uint8_t * packet)
       printf("Request matches Interface\n");
       if(arp_type==1)
     {
-      uint8_t * reply = generate_arp_reply(arpPacket,interface->ip,interface->addr);
+      uint8_t * reply = generate_fakearp(arpPacket,interface->ip,interface->addr);
      
       int sent = sr_send_packet(sr,reply,sizeof(sr_ethernet_hdr_t)+sizeof(sr_arp_hdr_t),interface->name);
     
@@ -164,6 +164,27 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
   memcpy(((sr_ethernet_hdr_t*)reply)->ether_dhost, destination, ETHER_ADDR_LEN);
   memcpy(((sr_ethernet_hdr_t*)reply)->ether_shost, sender, ETHER_ADDR_LEN);
   ((sr_ethernet_hdr_t*)reply)->ether_type = htons(type);
+}
+uint8_t * generate_fakearp(sr_arp_hdr_t * request,uint32_t ip,unsigned char* mac)
+{
+  uint8_t * reply = (uint8_t *) malloc(sizeof(sr_ethernet_hdr_t)+sizeof(sr_arp_hdr_t));
+ 
+  create_ethernet_header(reply,request->ar_sha,ARP_MAC_BROADCAST,ethertype_arp);
+  sr_arp_hdr_t * arp_reply = (sr_arp_hdr_t*) (reply + sizeof(sr_ethernet_hdr_t));
+  
+  arp_reply->ar_op = htons(arp_op_request);
+  
+  memcpy(arp_reply->ar_sha, mac, ETHER_ADDR_LEN);
+  memcpy(arp_reply->ar_tha, ARP_MAC_BROADCAST, ETHER_ADDR_LEN);
+  arp_reply->ar_sip = ip;
+  arp_reply->ar_tip = request->ar_sip ;
+  arp_reply->ar_pro=ntohs(ethertype_ip);
+  arp_reply->ar_hrd=ntohs(arp_hrd_ethernet);
+  arp_reply->ar_hln=6;
+  arp_reply->ar_pln=4;
+ 
+  return reply;
+
 }
 
 /*
