@@ -15,6 +15,9 @@
 
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
+#include "sr_rt.h"
+#include "sr_if.h"
+
 
 /* we dont like this debug , but what to do for varargs ? */
 #ifdef _DEBUG_
@@ -29,6 +32,11 @@
 
 #define INIT_TTL 255
 #define PACKET_DUMP_SIZE 1024
+
+
+/* constants */
+#define SR_ETH_HDR_LEN    sizeof(sr_ethernet_hdr_t)
+#define SR_ARP_HDR_LEN    sizeof(sr_arp_hdr_t)
 
 /* forward declare */
 struct sr_if;
@@ -73,5 +81,11 @@ void sr_add_interface(struct sr_instance* , const char* );
 void sr_set_ether_ip(struct sr_instance* , uint32_t );
 void sr_set_ether_addr(struct sr_instance* , const unsigned char* );
 void sr_print_if_list(struct sr_instance* );
+
+/* added functions */
+struct sr_rt * sr_search_ip_prfx(struct sr_instance * sr, uint32_t ip);
+void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq);
+void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq);
+
 
 #endif /* SR_ROUTER_H */

@@ -86,3 +86,124 @@ void sr_handlepacket(struct sr_instance* sr,
 
 }/* end sr_ForwardPacket */
 
+
+/* --------- Helper Functions ------ */
+
+/*
+* Return the longest prefix match for 'ip'
+* in sr's routing table, if not found, return NULL.
+*/
+struct sr_rt * sr_search_ip_prfx(struct sr_instance * sr, uint32_t ip){
+    struct sr_rt * curr_rt = sr->routing_table;
+    struct sr_rt * res_rt = NULL;
+    uint32_t subnetwork;
+
+    /* Iterate through curr_rt's linked list and find the best match */
+    while(curr_rt){
+        subnetwork =  curr_rt->dest.s_addr & curr_rt->mask.s_addr;
+        /* Now we do the IP match up */
+        if (subnetwork == (ip & curr_rt->mask.s_addr)){
+            /* fill out first time */
+            if(!res_rt){
+                res_rt = curr_rt;
+            }
+            else{
+                if(ntohl(res_rt->mask.s_addr) < ntohl(curr_rt->mask.s_addr)) {
+                    res_rt = curr_rt;
+                }
+            }
+        }
+        curr_rt = curr_rt->next;
+    }
+    return res_rt;
+}
+
+/*
+* Populate request header, then send broadcast that shit.
+*/
+void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq){
+
+    /* initialize variables */
+    time_t now;
+    uint8_t *buffer;
+    sr_ethernet_hdr_t *eth_hdr;
+    sr_arp_hdr_t * arp_hdr;
+    struct sr_rt *prefix_match;
+    const char *if_name;
+    struct sr_if *interface;
+    unsigned char * if_addr;
+    uint32_t if_ip; 
+
+
+    /* Build up parameters for request */
+    buffer = (uint8_t *) malloc(SR_ETH_HDR_LEN + SR_ARP_HDR_LEN);
+
+    /* We need to get the interface, therefore we need to do an IP lookup. */
+    prefix_match = sr_search_ip_prfx(sr, arpreq->ip);
+    if_name = prefix_match->interface;
+    interface = sr_get_interface(sr, if_name);
+    
+    if_addr; = interface->addr;
+    if_ip = interface->ip;
+
+    /* make a new eth_hdr struct and populate */
+    eth_hdr = (sr_ethernet_hdr_t *) buf;
+    eth_hdr->ether_type = ethertype_arp;
+    memcpy(eth_hdr->ether_dhost, ARP_MAC_BROADCAST, ETHER_ADDR_LEN);
+    memcpy(eth_hdr->ether_shost, ifaceaddr, ETHER_ADDR_LEN);
+    
+    /* Move pointer forward SR_ETH_HDR bits & init ARP header */
+    arp_hdr = (sr_arp_hdr_t *) (buf + SR_ETH_HDR_LEN);
+
+    /* populate the ARP header fields */
+    arp_hdr->ar_hrd = htons(arp_hrd_ethernet);
+    arp_hdr->ar_pro = htons(ip_protocol_icmp); /*not sure*/
+    arp_hdr->ar_hln = ETHER_ADDR_LEN;
+    arp_hdr->ar_pln = 4; /* change later lulz, ip_hl not workin qq*/
+    arp_hdr->ar_op = arp_op_request;
+    memcpy(arp_hdr->ar_sha, ifaceaddr, ETHER_ADDR_LEN);
+    arp_hdr->ar_sip = ifaceip;
+    memcpy(arp_hdr->ar_tha, ARP_MAC_BROADCAST, ETHER_ADDR_LEN);
+    arp_hdr->ar_tip = arpreq->ip;
+
+    /* SEND THE PACKET */
+    sr_send_packet(sr, buffer, (SR_ETH_HDR_LEN + SR_ARP_HDR_LEN), interface->name);
+
+    /* clean up, record the time & update # of times sent */
+    free(buffer);
+    now = time(NULL);
+    arpreq->sent = now;
+    arpreq->times_sent++;
+}
+
+/*
+* Send that mofo
+*/
+void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
+
+    /*Do a cache look up. */
+    struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
+    if(entry){
+        /*use next_hop_ip->mac mapping in entry to send the packet*/
+        /* maybe we need to start with packets->next*/
+        struct sr_packet *packets = arpreq->packets;
+        while (packets){
+            /* Send packet */
+            sr_send_packet(sr, packets->buf, packets->len, packets->iface);
+
+            /*Destroy and free the packet memory*/
+            struct sr_packet *new_packet = packets->next;
+            free(packets->buf);
+            free(&packets->len);
+            free(packets->iface);
+            packets = new_packet;
+        }
+        /*free entry*/
+    }
+    else {
+        /*arpreq = arpcache_queuereq(next_hop_ip, packet, len);*/
+       
+        handle_arpreq(sr, arpreq);
+    }
+}
+
