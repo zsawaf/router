@@ -129,13 +129,18 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
       else {
 	printf("Handling table entry miss! \n");
 	printf("Got the request, do a reverse IP lookup.\n");
-	const char * interface = sr_search_ip_prfx(sr, arp_hdr->ip_src)->interface;
+	const char * interface = sr_search_ip_prfx(sr, arp_hdr->ip_dst)->interface;
 	struct sr_if *struct_interface = sr_get_interface(sr, interface);
-	uint8_t *request = generate_arp_request(arp_hdr->ip_src, ip, struct_interface->addr);
-	printf("Got the interface struct.\n");
+  
+	uint8_t *request = generate_arp_request(struct_interface->ip, ip, struct_interface->addr);
 	printf("Got the interface name now we want to send\n");
 	int sent = sr_send_packet(sr,request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN, struct_interface->name);
-	printf("send that shit\n");
+	if (sent){
+	  printf("Failed to send\n");
+	}
+	else{
+	  printf("Package sent successfuly\n");
+	}
       }
     }
 
@@ -341,6 +346,8 @@ void handle_reply(struct sr_instance* sr,uint8_t * packet) {
   ARP_header = (sr_arp_hdr_t *) (packet + SR_ETH_HDR_LEN);
   /* fetch the target IP Address */
   target_IPA = ntohl(ARP_header->ar_tip);
+  printf("Target IP Address is: \n");
+  print_addr_ip_int(target_IPA);
   /* check if the ARP's target IP address is one of your router's IP addresses. */
   current_interface = sr->if_list;
   while (current_interface) {
@@ -348,6 +355,7 @@ void handle_reply(struct sr_instance* sr,uint8_t * packet) {
     if (target_IPA == ntohl(current_interface->ip)) {
       printf("---------------------\n FOUND. reply is addressed to me!! \n");
       /* store the ARP reply in the cache */
+      printf("Inserting into cache.\n");
       struct sr_arpreq * to_cache = sr_arpcache_insert(&sr->cache,ARP_header->ar_sha, ARP_header->ar_sip);
 
       if(to_cache){
