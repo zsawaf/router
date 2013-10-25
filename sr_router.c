@@ -102,6 +102,10 @@ void sr_handlepacket(struct sr_instance* sr,
     handle_ip(sr,packet);
       }
 }/* end sr_ForwardPacket */
+
+/*
+ * Function to handle IP.
+ */
 void handle_ip(struct sr_instance* sr,uint8_t * packet)
 {
   sr_ip_hdr_t* ipPacket = (sr_ip_hdr_t*)(packet+sizeof(sr_ethernet_hdr_t));
@@ -131,16 +135,12 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
 	printf("Got the request, do a reverse IP lookup.\n");
 	const char * interface = sr_search_ip_prfx(sr, arp_hdr->ip_dst)->interface;
 	struct sr_if *struct_interface = sr_get_interface(sr, interface);
-  
+  +
 	uint8_t *request = generate_arp_request(struct_interface->ip, ip, struct_interface->addr);
 	printf("Got the interface name now we want to send\n");
-	int sent = sr_send_packet(sr,request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN, struct_interface->name);
-	if (sent){
-	  printf("Failed to send\n");
-	}
-	else{
-	  printf("Package sent successfuly\n");
-	}
+	struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache, ip, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN,
+							     interface);
+
       }
     }
 
@@ -231,6 +231,8 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
   return request;
 
 }
+
+void sr_send_arp_broadcast(struct sr_instance* sr)
 
 /*
 *
@@ -351,7 +353,7 @@ void handle_reply(struct sr_instance* sr,uint8_t * packet) {
   /* check if the ARP's target IP address is one of your router's IP addresses. */
   current_interface = sr->if_list;
   while (current_interface) {
-    printf("looping thru the interfaces \n");
+    printf("looping through the interfaces \n");
     if (target_IPA == ntohl(current_interface->ip)) {
       printf("---------------------\n FOUND. reply is addressed to me!! \n");
       /* store the ARP reply in the cache */
@@ -359,6 +361,7 @@ void handle_reply(struct sr_instance* sr,uint8_t * packet) {
       struct sr_arpreq * to_cache = sr_arpcache_insert(&sr->cache,ARP_header->ar_sha, ARP_header->ar_sip);
 
       if(to_cache){
+	
 	sr_send_arpreq(sr, to_cache);
 	sr_arpreq_destroy(&sr->cache, to_cache);
       }
