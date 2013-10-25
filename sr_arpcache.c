@@ -38,8 +38,7 @@ void handle_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
 * Return the longest prefix match for 'ip'
 * in sr's routing table, if not found, return NULL.
 */
-struct sr_rt * sr_seach_ip_prfx(struct sr_instance * sr, uint32_t ip)
-{
+struct sr_rt * sr_seach_ip_prfx(struct sr_instance * sr, uint32_t ip){
     struct sr_rt * curr_rt = sr->routing_table;
     struct sr_rt * res_rt = NULL;
 
@@ -57,6 +56,7 @@ struct sr_rt * sr_seach_ip_prfx(struct sr_instance * sr, uint32_t ip)
                     res_rt = curr_rt;
                 }
             }
+        }
         curr_rt = curr_rt->next;
     }
     return res_rt;
