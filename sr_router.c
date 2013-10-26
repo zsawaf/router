@@ -96,10 +96,9 @@ void sr_handlepacket(struct sr_instance* sr,
     /*Handle ARP PACKET*/
     handle_arp(sr,packet);
   }
-  else
-    if(ethprotocol == ethertype_ip)
-      {printf("Packet protocol is IP\n-----\n");
-    handle_ip(sr,packet);
+  else if(ethprotocol == ethertype_ip){
+        printf("Packet protocol is IP\n-----\n");
+        handle_ip(sr,packet);
       }
 }/* end sr_ForwardPacket */
 
@@ -128,7 +127,7 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
     /* dest ip */
     uint32_t ip = arp->ip_dst;
     sr_send_arp_broadcast(sr, ip);
-  
+  }
 }/* end sr_ForwardPacket */
 
 
