@@ -29,7 +29,7 @@ void proc_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
             sr_arpreq_destroy(&sr->cache, arpreq);
         }
         else {  
-	  sr_send_arp_broadcast(sr, arpreq->ip);
+	  /*sr_send_arp_broadcast(sr, arpreq->ip);*/
         }
 
     }
