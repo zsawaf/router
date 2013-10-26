@@ -132,7 +132,7 @@ void handle_arp(struct sr_instance* sr,uint8_t * packet)
   if(interface)
     {
       printf("Request matches Interface\n");
-      if(arp_type==1)
+      if(arp_type == arp_op_request)
     {
       uint8_t * reply = generate_fakearp(arpPacket,interface->ip,interface->addr);
      
@@ -147,8 +147,10 @@ void handle_arp(struct sr_instance* sr,uint8_t * packet)
        printf("ARP reply successfully sent.\n");
     }
       else
-    if(arp_type==2)
-      {/*HANDLE REPLY*/}
+    if(arp_type == arp_op_reply)
+      {
+        handle_reply(sr, packet);
+      }
         else
           printf("Invalid operation type");
       }
@@ -158,6 +160,37 @@ void handle_arp(struct sr_instance* sr,uint8_t * packet)
       printf("---------------------------------\n");
   
 }
+
+void handle_reply(struct sr_instance* sr,uint8_t * packet) {
+    /* initialize variables */
+    sr_arp_hdr_t *ARP_header;
+    struct sr_if *current_interface;
+    uint32_t target_IPA;
+
+    /* make the ARP header struct and skip the Etherenet header details*/
+    ARP_header = (sr_arp_hdr_t *) (packet + SR_ETH_HDR_LEN);
+
+    /* fetch the target IP Address */
+    target_IPA = ntohl(arp->ar_tip);
+
+    /* check if the ARP's target IP address is one of your router's IP addresses. */
+    current_interface = sr->if_list;
+    while (current_interface) {
+        printf("looping thru the interfaces \n");
+        if (target_IPA == ntohl(current_interface->ip)) {
+
+            printf("---------------------\n FOUND. reply is addressed to me!! \n");
+
+             /* store the ARP reply in the cache */
+            struct sr_arpreq * to_cache = sr_arpcache_insert(&sr->cache,
+                            ARP_header->ar_sha, ARP_header->ar_sip);
+            break;
+        }
+        current_interface = current_interface->next;
+    }
+}
+
+
 /*------------------------------------------------------------------------------------*/
 void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const uint8_t* sender, uint16_t type)
 {
