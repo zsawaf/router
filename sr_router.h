@@ -95,4 +95,5 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
 uint8_t * generate_arp_reply(sr_arp_hdr_t * request,uint32_t ip,unsigned char* mac);
 struct sr_if* findInterface(uint32_t ip,struct sr_instance* sr);
 void handle_reply(struct sr_instance* sr,uint8_t * packet);
+void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip);
 #endif /* SR_ROUTER_H */

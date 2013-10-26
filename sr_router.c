@@ -126,7 +126,7 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
     sr_ip_hdr_t *ip_header = (sr_ip_hdr_t *)(packet + SR_ETH_HDR_LEN);
 
     /* dest ip */
-    uint32_t ip = arp->ip_dst;
+    uint32_t ip = ip_header->ip_dst;
     sr_send_arp_broadcast(sr, ip);
   
 }/* end sr_ForwardPacket */
@@ -177,36 +177,6 @@ void handle_arp(struct sr_instance* sr,uint8_t * packet)
       printf("---------------------------------\n");
   
 }
-
-void handle_reply(struct sr_instance* sr,uint8_t * packet) {
-    /* initialize variables */
-    sr_arp_hdr_t *ARP_header;
-    struct sr_if *current_interface;
-    uint32_t target_IPA;
-
-    /* make the ARP header struct and skip the Etherenet header details*/
-    ARP_header = (sr_arp_hdr_t *) (packet + SR_ETH_HDR_LEN);
-
-    /* fetch the target IP Address */
-    target_IPA = ntohl(arp->ar_tip);
-
-    /* check if the ARP's target IP address is one of your router's IP addresses. */
-    current_interface = sr->if_list;
-    while (current_interface) {
-        printf("looping thru the interfaces \n");
-        if (target_IPA == ntohl(current_interface->ip)) {
-
-            printf("---------------------\n FOUND. reply is addressed to me!! \n");
-
-             /* store the ARP reply in the cache */
-            struct sr_arpreq * to_cache = sr_arpcache_insert(&sr->cache,
-                            ARP_header->ar_sha, ARP_header->ar_sip);
-            break;
-        }
-        current_interface = current_interface->next;
-    }
-}
-
 
 /*------------------------------------------------------------------------------------*/
 void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const uint8_t* sender, uint16_t type)
