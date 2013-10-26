@@ -13,6 +13,7 @@
 /* looping constants */
 #define SR_ARP_MAXSEND    5.0
 #define SR_ARP_MAXDIF     1.0
+
 /*
  * Handle the arp request, send request is necessary. 
  */
@@ -26,11 +27,17 @@ void proc_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
 
             /*sr_send_unreachable(sr, arpreq);*/
 
-            sr_arpreq_destroy(&sr->cache, arpreq, 0);
+            sr_arpreq_destroy(&sr->cache, arpreq);
         }
         else {  
 	  printf("about to fap from queue\n\n\n");
-	  sr_send_arp_broadcast(sr, arpreq->ip);
+
+	  
+	  
+	  /* use generate_arp_request here instead of broadcast. */
+	  /* arp then generates the request by sending the header and expects a reply */
+	  generate_arp_request(sr, arpreq);
+	  
 	  printf("queuefapped \n\n\n");
         }
 
