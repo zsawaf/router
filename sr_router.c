@@ -221,17 +221,20 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
 }
 
 void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip) {
-    char * interface = sr_search_ip_prfx(sr, destination_ip)->interface;
+    
+  struct sr_rt *rt = sr_search_ip_prfx(sr, destination_ip);
+    char * interface = rt->interface;
     printf("Finished getting the right interface.\n");
     struct sr_if *struct_interface = sr_get_interface(sr, interface);
-    uint32_t ip = sr_search_ip_prfx(sr, destination_ip)->dest.s_addr;
+    uint32_t src_ip = struct_interface->ip;
+    uint32_t target_ip = rt->dest.s_addr;
 
     printf("TEST NOW==============================\n\n\n");
-    print_addr_ip_int(ip);
-    print_addr_ip_int(destination_ip);
+    print_addr_ip_int(src_ip);
+    print_addr_ip_int(target_ip);
     printf("END TEST==============================\n\n\n");
 
-    struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, ip);
+    struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, target_ip);
     printf("Deciding if entry exists or not.\n");
 
     if (entry) {
@@ -241,8 +244,8 @@ void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip) {
 
     else {
       printf("Generating an arp request.\n");
-      uint8_t *request = generate_arp_request(ip, destination_ip, struct_interface->addr);
-      struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache, ip, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN,
+      uint8_t *request = generate_arp_request(src_ip, target_ip, struct_interface->addr);
+      struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache,src_ip, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN,
                                      interface);
       printf("Sending packet...\n");
       int sent = sr_send_packet(sr, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN, struct_interface->name);
