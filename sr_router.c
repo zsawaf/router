@@ -126,7 +126,7 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
 
     /* dest ip */
     uint32_t ip = ip_header->ip_dst;
-    sr_send_arp_broadcast(sr, ip);
+    sr_send_arp_broadcast(sr, ip, packet);
 
     }
 }/* end sr_ForwardPacket */
@@ -220,7 +220,7 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
 
 }
 
-void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip) {
+void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip, uint8_t) {
     
   struct sr_rt *rt = sr_search_ip_prfx(sr, destination_ip);
     char * interface = rt->interface;
@@ -244,9 +244,11 @@ void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip) {
 
     else {
       printf("Generating an arp request.\n");
-      uint8_t *request = generate_arp_request(src_ip, target_ip, struct_interface->addr);
-      struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache,src_ip, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN,
+      if (packet) {
+      // uint8_t *request = generate_arp_request(src_ip, target_ip, struct_interface->addr);
+        struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache,src_ip, packet, (SR_ETH_HDR_LEN + sizeof(sr_icmp_hdr) + SR_ARP_HDR_LEN),
                                      interface);
+      }
       printf("Sending packet...\n");
       int sent = sr_send_packet(sr, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN, struct_interface->name);
       if (sent){

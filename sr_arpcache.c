@@ -26,7 +26,7 @@ void proc_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
 
             /*sr_send_unreachable(sr, arpreq);*/
 
-            sr_arpreq_destroy(&sr->cache, arpreq);
+            sr_arpreq_destroy(&sr->cache, arpreq, 0);
         }
         else {  
 	  printf("about to fap from queue\n\n\n");
