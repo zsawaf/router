@@ -120,7 +120,6 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
     printf("ICMP ");
 
     /* Check if mac address exists */
-    sr_ethernet_hdr_t *eth_hdr = (sr_ethernet_hdr_t *) (packet);
     /* Get source mac */
     printf("Got the mac address.\n");
 
@@ -131,7 +130,7 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
     uint32_t ip = ip_header->ip_dst;
  
     printf("Finished getting the right interface.\n");
-    sr_send_arp_broadcast(sr, ip, packet);
+    enqueue_packet(sr, ip, packet);
 
     }
 }/* end sr_ForwardPacket */
@@ -194,13 +193,14 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
 /*
  * Create and send the ARP request
  */
-void generate_arp_request(struct sr_instance *sr, struct sr_arpreq *arpreq)
-{
+void generate_arp_request(struct sr_instance *sr, struct sr_arpreq *arpreq) {
+
+  printf("sending ARP REQUEST\n\n\n\n\\n\n\n\n\n");
 
     time_t now = time(NULL);
     time_t last_sent = arpreq->sent;
 
-    if (difftime(now, last_sent) <= SR_ARP_MAXDIF) {
+    if (difftime(now, last_sent) > SR_ARP_MAXDIF) { 
         if (arpreq->times_sent < SR_ARP_MAXSEND) {
 
         uint8_t * request = (uint8_t *) malloc(SR_ETH_HDR_LEN + SR_ARP_HDR_LEN);
@@ -264,7 +264,7 @@ void enqueue_packet(struct sr_instance* sr, uint32_t destination_ip,  uint8_t *p
     else {
      
      /* put packet to wait on the reply */
-    struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache, target_ip, packet, (SR_ETH_HDR_LEN + sizeof(sr_icmp_hdr_t) + SR_ARP_HDR_LEN),rt->interface);
+    struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache, target_ip, packet, (SR_ETH_HDR_LEN + sizeof(sr_icmp_hdr_t) + SR_ARP_HDR_LEN),routing_table->interface);
 
     /*  send first ARP request - MIGHT BE UNNCESESSARY */
     generate_arp_request(sr, arp_request);
@@ -378,7 +378,7 @@ void handle_reply(struct sr_instance* sr,uint8_t * packet) {
     sr_arp_hdr_t *ARP_header;
     struct sr_if *current_interface;
     uint32_t target_IPA;
-
+    printf("GOT ARP REPLY HURRAY YO ! \n\n\n\n\n\n\n\n");
     /* make the ARP header struct and skip the Etherenet header details*/
     ARP_header = (sr_arp_hdr_t *) (packet + SR_ETH_HDR_LEN);
 
