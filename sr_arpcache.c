@@ -29,7 +29,9 @@ void proc_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq) {
             sr_arpreq_destroy(&sr->cache, arpreq);
         }
         else {  
+	  printf("about to fap from queue\n\n\n");
 	  sr_send_arp_broadcast(sr, arpreq->ip);
+	  printf("queuefapped \n\n\n");
         }
 
     }

@@ -125,9 +125,10 @@ void handle_ip(struct sr_instance* sr,uint8_t * packet)
     sr_ip_hdr_t *ip_header = (sr_ip_hdr_t *)(packet + SR_ETH_HDR_LEN);
 
     /* dest ip */
-    uint32_t ip = arp->ip_dst;
+    uint32_t ip = ip_header->ip_dst;
     sr_send_arp_broadcast(sr, ip);
-  }
+
+    }
 }/* end sr_ForwardPacket */
 
 
@@ -177,36 +178,6 @@ void handle_arp(struct sr_instance* sr,uint8_t * packet)
   
 }
 
-void handle_reply(struct sr_instance* sr,uint8_t * packet) {
-    /* initialize variables */
-    sr_arp_hdr_t *ARP_header;
-    struct sr_if *current_interface;
-    uint32_t target_IPA;
-
-    /* make the ARP header struct and skip the Etherenet header details*/
-    ARP_header = (sr_arp_hdr_t *) (packet + SR_ETH_HDR_LEN);
-
-    /* fetch the target IP Address */
-    target_IPA = ntohl(arp->ar_tip);
-
-    /* check if the ARP's target IP address is one of your router's IP addresses. */
-    current_interface = sr->if_list;
-    while (current_interface) {
-        printf("looping thru the interfaces \n");
-        if (target_IPA == ntohl(current_interface->ip)) {
-
-            printf("---------------------\n FOUND. reply is addressed to me!! \n");
-
-             /* store the ARP reply in the cache */
-            struct sr_arpreq * to_cache = sr_arpcache_insert(&sr->cache,
-                            ARP_header->ar_sha, ARP_header->ar_sip);
-            break;
-        }
-        current_interface = current_interface->next;
-    }
-}
-
-
 /*------------------------------------------------------------------------------------*/
 void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const uint8_t* sender, uint16_t type)
 {
@@ -242,7 +213,7 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
   arp_request->ar_hln=6;
   arp_request->ar_pln=4;
 
-  printf("This is what is inside the buffer request:\n\n");
++  printf("This is what is inside the buffer request:\n\n");
   print_hdr_eth(request);
   print_hdr_arp(request + SR_ETH_HDR_LEN);
   return request;
@@ -250,11 +221,20 @@ void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const ui
 }
 
 void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip) {
-    const char * interface = sr_search_ip_prfx(sr, destination_ip)->interface;
+    
+  struct sr_rt *rt = sr_search_ip_prfx(sr, destination_ip);
+    char * interface = rt->interface;
+    printf("Finished getting the right interface.\n");
     struct sr_if *struct_interface = sr_get_interface(sr, interface);
-    uint32_t ip = struct_interface->ip;
+    uint32_t src_ip = struct_interface->ip;
+    uint32_t target_ip = rt->dest.s_addr;
 
-    struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, ip);
+    printf("TEST NOW==============================\n\n\n");
+    print_addr_ip_int(src_ip);
+    print_addr_ip_int(target_ip);
+    printf("END TEST==============================\n\n\n");
+
+    struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, target_ip);
     printf("Deciding if entry exists or not.\n");
 
     if (entry) {
@@ -263,10 +243,19 @@ void sr_send_arp_broadcast(struct sr_instance* sr, uint32_t destination_ip) {
     }
 
     else {
-        uint8_t *request = generate_arp_request(ip, destination_ip, struct_interface->addr);
-        struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache, ip, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN,
+      printf("Generating an arp request.\n");
+      uint8_t *request = generate_arp_request(src_ip, target_ip, struct_interface->addr);
+      struct sr_arpreq *arp_request = sr_arpcache_queuereq(&sr->cache,src_ip, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN,
                                      interface);
-        sr_send_packet(sr, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN, struct_interface->name);
+      printf("Sending packet...\n");
+      int sent = sr_send_packet(sr, request, SR_ETH_HDR_LEN + SR_ARP_HDR_LEN, struct_interface->name);
+      if (sent){
+	printf("Message failed to deliver.\n");
+      }
+      else {
+	printf("Message sent successfully!\n");
+      }
+      
     }
 }
 
@@ -355,10 +344,12 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
 
   /*Do a cache look up. */
   struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, arpreq->ip);
+  printf("Got the entry\n");
   if(entry){
       /*use next_hop_ip->mac mapping in entry to send the packet*/
       /* maybe we need to start with packets->next*/
       struct sr_packet *packets = arpreq->packets;
+      printf("Got the packets, now going to iterate through packets.\n");
       while (packets){
 	/* Specify the destination MAC */
 	sr_ethernet_hdr_t * eth_hdr = (sr_ethernet_hdr_t*) packets->buf;
@@ -366,10 +357,12 @@ void sr_send_arpreq(struct sr_instance *sr, struct sr_arpreq *arpreq){
         /* Send packet */
         sr_send_packet(sr, packets->buf, packets->len, packets->iface);
         /*Destroy and free the packet memory*/
-        struct sr_packet *new_packet = packets->next;         
+        struct sr_packet *new_packet = packets->next;
+	printf("About to free!\n");
 	free(packets->buf);
         free(&packets->len);
         free(packets->iface);
+	printf("Free successful\n");
         packets = new_packet;
       }
   }
