@@ -206,8 +206,8 @@ void generate_arp_request(struct sr_instance *sr, struct sr_arpreq *arpreq)
         uint8_t * request = (uint8_t *) malloc(SR_ETH_HDR_LEN + SR_ARP_HDR_LEN);
 
         /* find out-going interface */
-        struct sr_rt *rt = sr_search_ip_prfx(sr, arpreq->ip);
-        const char *iface_name = rt->interface;				
+        struct sr_rt *routing_table = sr_search_ip_prfx(sr, arpreq->ip);
+        const char *iface_name = routing_table->interface;				
         struct sr_if *iface = sr_get_interface(sr, iface_name);
 
         /* create the ethernet header - USER FUNCTION FOR THIS */
@@ -253,8 +253,8 @@ void generate_arp_request(struct sr_instance *sr, struct sr_arpreq *arpreq)
 void enqueue_packet(struct sr_instance* sr, uint32_t destination_ip,  uint8_t *packet) {
     
     /* fetch entry based on interface's IP */
-    struct sr_rt *rt = sr_search_ip_prfx(sr, destination_ip);
-    uint32_t target_ip = rt->gw.s_addr;
+    struct sr_rt *routing_table = sr_search_ip_prfx(sr, destination_ip);
+    uint32_t target_ip = routing_table->gw.s_addr;
     struct sr_arpentry *entry = sr_arpcache_lookup(&sr->cache, target_ip);
 
     if (entry) {
@@ -268,7 +268,6 @@ void enqueue_packet(struct sr_instance* sr, uint32_t destination_ip,  uint8_t *p
 
     /*  send first ARP request - MIGHT BE UNNCESESSARY */
     generate_arp_request(sr, arp_request);
-      
     }
 }
 
