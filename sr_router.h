@@ -96,4 +96,7 @@ uint8_t * generate_arp_reply(sr_arp_hdr_t * request,uint32_t ip,unsigned char* m
 struct sr_if* findInterface(uint32_t ip,struct sr_instance* sr);
 void handle_reply(struct sr_instance* sr,uint8_t * packet);
 void enqueue_packet(struct sr_instance* sr, uint32_t destination_ip, uint8_t *packet);
+unsigned int ethertype_len(uint16_t ethertype);
+unsigned int check_len(uint8_t *packet, unsigned int len);
+unsigned int check_check_sum(uint8_t *packet);
 #endif /* SR_ROUTER_H */

@@ -42,7 +42,7 @@ void sr_init(struct sr_instance* sr)
 {
     /* REQUIRES */
     assert(sr);
-    printf("hello word\n");
+
     /* Initialize cache and cache cleanup thread */
     sr_arpcache_init(&(sr->cache));
 
@@ -87,6 +87,24 @@ void sr_handlepacket(struct sr_instance* sr,
   printf("*** -> Received packet of length %d \n",len);
   print_hdrs(packet,len);
   /* fill in code here */
+
+  unsigned int check_length = check_len(packet, len);
+
+  if (check_length == 1){
+    printf("\n*** ->Checking length is  successful\n");
+  }
+  else {
+    printf("\n*** ->Failed checking length\n");
+  }
+
+  unsigned int check_sum = check_check_sum(packet);
+
+  if (check_sum == 1){
+    printf("\n*** ->Checking sum is  successful\n");
+  }
+  else {
+    printf("\n*** ->Failed checking sum\n");
+  }  
   
 
   /*GET THE PROTOCOL OF THE ETHERNET PACKET*/
@@ -103,7 +121,74 @@ void sr_handlepacket(struct sr_instance* sr,
         printf("Packet protocol is IP\n-----\n");
         handle_ip(sr,packet);
       }
-}/* end sr_ForwardPacket */
+}
+
+/* Switch function to get the correct ethertype size */
+unsigned int ethertype_len(uint16_t ethertype){
+  if(ethertype == ethertype_ip){
+    return sizeof(sr_ip_hdr_t);
+  }
+  else if(ethertype == ethertype_arp){
+    return sizeof(sr_arp_hdr_t);
+  }
+  else {
+    return 0;
+  }
+}
+
+/* Sanity check on length. Return 1 on success, 0 on failure. */
+unsigned int check_len(uint8_t *packet, unsigned int len){
+  
+  unsigned int ethernet_hdr_len = sizeof(sr_ethernet_hdr_t);
+
+  /* Check that the length is compatible */
+  if (len < ethernet_hdr_len){
+    printf("Ethernet header length incompatible size.\n");
+    return 0;
+  }
+  
+  /* Check sanity of protocol headers */
+  uint16_t ethernet_protocol = ntohs(((sr_ethernet_hdr_t*)packet)->ether_type);
+  unsigned int protocol_hdr_len = ethertype_len(ethernet_protocol);
+  if (len < SR_ETH_HDR_LEN + protocol_hdr_len){
+    printf("Protocol header length incompatible size.\n");
+    return 0;
+  }
+
+  if (ethernet_protocol == ethertype_arp){
+    sr_arp_hdr_t *arp_packet = (sr_arp_hdr_t *)(packet + SR_ETH_HDR_LEN);
+    if (ntohs(arp_packet->ar_pro) != ethertype_ip){
+      printf("Protocol data incompatible.");
+      return 0;
+    }
+  }
+  else if (ethernet_protocol == ethertype_ip){
+    sr_ip_hdr_t *ip_packet = (sr_ip_hdr_t*)(packet + SR_ETH_HDR_LEN);
+    if (len < SR_ETH_HDR_LEN + ntohs(ip_packet->ip_len)){
+      return 0;
+    }
+  }
+  else {
+    printf("Ethernet Protocol %x is not recognized\n", ethernet_protocol);
+  }
+
+  return 1;
+}
+
+unsigned int check_check_sum(uint8_t *packet){
+  uint16_t ethernet_protocol = ntohs(((sr_ethernet_hdr_t*)packet)->ether_type);
+  if (ethernet_protocol == ethertype_ip){
+    sr_ip_hdr_t *ip_header = (sr_ip_hdr_t*)(packet + SR_ETH_HDR_LEN);
+    uint16_t ip_sum = ip_header->ip_sum;
+    ip_header->ip_sum = 0;
+    uint16_t ip_hdr_len = sizeof(sr_ip_hdr_t);
+    uint16_t compute_sum = cksum(ip_header, ip_hdr_len);
+    ip_header->ip_sum = ip_sum;
+    unsigned int is_sane = (ip_sum == compute_sum);
+    return is_sane;
+  }
+  return 1;
+}
 
 /*
  * Function to handle IP.
