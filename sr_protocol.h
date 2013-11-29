@@ -99,9 +99,55 @@ struct sr_icmp_t3_hdr {
   uint8_t data[ICMP_DATA_SIZE];
 
 } __attribute__ ((packed)) ;
+
 typedef struct sr_icmp_t3_hdr sr_icmp_t3_hdr_t;
 
+struct sr_echo_icmp_hdr { 
+  uint8_t icmp_type; 
+  uint8_t icmp_code; 
+  uint16_t icmp_sum; 
+  uint16_t icmp_id; 
+  uint16_t icmp_seq; 
+} __attribute__ ((packed)) ; 
 
+typedef struct sr_echo_icmp_hdr sr_echo_icmp_hdr_t;
+
+#define TCP_FIN 0x01 
+#define TCP_SYN 0x02 
+#define TCP_RST 0x04 
+#define TCP_PSH 0x08 
+#define TCP_ACK 0x10 
+#define TCP_URG 0x20 
+#define TCP_CTRLMASK 0x3f
+
+struct sr_tcp_hdr{ 
+  uint16_t src_port; 
+  uint16_t dst_port; 
+  uint32_t seq; 
+  uint32_t ack; 
+
+  uint8_t offset;
+#define TCP_FIN 0x01 
+#define TCP_SYN 0x02 
+#define TCP_RST 0x04 
+#define TCP_PSH 0x08 
+#define TCP_ACK 0x10 
+#define TCP_URG 0x20 
+#define TCP_CTRLMASK 0x3f
+
+#if __BYTE_ORDER == __LITTLE_ENDIAN 
+  unsigned int misc:4; 
+  unsigned int tcp_hl:4; 
+#elif __BYTE_ORDER == __BIG_ENDIAN 
+  unsigned int tcp_hl:4; 
+  unsigned int misc:4; 
+#else 
+#error "Byte ordering not specified " 
+#endif 
+  uint8_t ctrl; 
+  uint16_t window; 
+  uint16_t sum; 
+}__attribute__((packed)); typedef struct sr_tcp_hdr sr_tcp_hdr_t;
 
 
 /*

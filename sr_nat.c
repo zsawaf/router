@@ -5,14 +5,15 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 #include <netinet/in.h>
 
 
 /* HELPER FUNCTIONS FOR router.c */
 struct sr_nat_connection *find_connection(struct sr_nat_connection *con, struct sr_nat_connection *target){
 
-  uint16_t external_port = target->aux_ext;
-  uint32_t external_ip = target->ip_ext;
+  uint16_t external_port = target->external_port;
+  uint32_t external_ip = target->external_port;
   int found = 0;
   struct sr_nat_connection *copy = con;
   while(copy && (found == 0)) {
@@ -41,14 +42,18 @@ struct sr_nat_mapping *find_mapping(struct sr_nat *nat, struct sr_nat_mapping *t
 /* Functions used in router.c for inbound & outbound */
 
 struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat, 
-  struct sr_nat_mapping *entry, uint32_t external_ip, uint16_t external_port) {
+  struct sr_nat_mapping *entry, struct sr_nat_connection *target) {
 
   pthread_mutex_lock(&(nat->lock));
+
+  uint16_t external_port = target->external_port;
+  uint32_t external_ip = target->external_ip;
+
   struct sr_nat_connection *con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
   struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
 
   if(cur_entry) {
-    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_port, external_ip);
+    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, target);
     if (!cur_conn) {
       cur_conn = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
       cur_conn->stamp = time(NULL);
@@ -71,13 +76,13 @@ struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat,
 }
 
 struct sr_nat_connection * sr_lookup_connection(struct sr_nat *nat, struct sr_nat_mapping *entry,
-  uint32_t external_ip, uint32_t external_port) {
+  struct sr_nat_connection *target) {
 
     pthread_mutex_lock(&(nat->lock));
 
     struct sr_nat_connection *con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
     struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
-    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_ip, external_port);
+    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, target);
     if (cur_entry && cur_conn) {
       memcpy(con, cur_conn, sizeof(struct sr_nat_connection));
     }
@@ -88,15 +93,18 @@ struct sr_nat_connection * sr_lookup_connection(struct sr_nat *nat, struct sr_na
 
 /* Return 0 if tcp can be forwarded, 1 otherwise */
 unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entry, struct sr_nat_connection *con, 
-  int state){
+  int state, int direction){
 
   pthread_mutex_lock(&(nat->lock));
 
+  uint8_t syn;
+  uint8_t ack;
+  uint8_t reset;
+  uint8_t finish;
   int can_send;
 
   /* Check if entry is in mapping table, if it isn't we cannot forward the tcp */
-  struct sr_nat_mapping *nat_mapping = nat->mappings;
-  struct sr_nat_mapping *cur_entry = find_mapping(nat_mapping, entry);
+  struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
 
   if (!cur_entry) {
     can_send = 0;
@@ -112,15 +120,137 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
     return can_send;
   }
 
-  
+  syn = sr_tcp_hdr->offset & TCP_SYN;
+  ack = sr_tcp_hdr->offset & TCP_ACK;
+  reset = sr_tcp_hdr->offset & TCP_RST;
+  finish = sr_tcp_hdr->offset & TCP_FIN;
+
+  if (cur_con->state == STATE_INIT) {
+    /* handle inbound */
+    if(direction == OUTBOUND) {
+      if(ack && cur_con->sent != SYN_ACK) {
+        cur_con->sent = SYN_DEFINED;
+        /* the sequence number thingy */
+      }
+    }
+    else if(direction == INBOUND) {
+      // might need to check for sent syn number as well
+      if(cur->sent && ack == SYN_DEFINED && ntohl(sr_tcp_hdr->ack)) {
+        cur_con->sent = SYN_ACK;
+      }
+      if(cur_con->received && syn != SYN_ACK) {
+        cur_con->received = SYN_DEFINED;
+        /* set sequence number tcp recieved*/
+      }
+    }
+  }
+
   pthread_mutex_unlock(&(nat->lock));
+
+  return 0;
 }
+
 /* HELPER FUNCTIONS FOR sr_nat.c */
+
+void timeout_tcp_connections(struct sr_nat *nat, struct sr_nat_mapping *TCP_entry, time_t now) {
+  double time_difference;
+  double timeout;
+  /* iterate over connections and delete the ones that are timed out */
+  struct sr_nat_connection *entry = TCP_entry->conns;
+  struct sr_nat_connection *previous_entry = NULL;
+
+  while (entry) {
+    time_difference = difftime(now, entry->stamp);
+
+    /* Set connection timeout based on state */
+    if (entry->state == STATE_INIT || entry->state == STATE_END) {
+      timeout = SOME_OTHER_TIMEOUT;
+    }
+    else { /* connection is established */
+      timeout = SOME_OTHER_OTHER_TIMEOUT;
+    }
+
+    if (time_difference > timeout) {
+    /* remove from the middle of linked list */
+      if (previous_entry) {
+        previous_entry->next = entry->next;
+        free(entry);
+        entry = entry->next;
+      }
+      /* make the next entry the new LL head */
+      else {
+        TCP_entry->conns = entry->next;
+        free(entry);
+        entry = TCP_entry->conns;
+      }
+    }
+  } 
+}
+
+int perform_type_action(struct sr_nat *nat, time_t now, struct sr_nat_mapping *entry) {
+  int waiting_connections = 0;
+  /* type-specific actions */
+  if (entry->type == nat_mapping_tcp) {
+    timeout_tcp_connections(nat, entry, now);
+    if (entry->conns) {
+      waiting_connections = 1;
+    }
+  }
+  else if (entry->type == nat_unsolicited_packet) {
+    /* send destination unreachable to host */
+    printf("Send destination unreachable\n");
+  }
+  return waiting_connections;
+}
 
 /* When an unsolicited SYN is timed out, then we want to drop it
  * from the Linked List */
-void sr_handle_unsolicited_timeout(struct sr_nat *nat, time_t curtime) {
+void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
+  struct sr_nat *nat = (struct sr_nat *)nat_ptr;
+  double time_difference;
 
+  while (1) {
+    sleep(1.0);
+    pthread_mutex_lock(&(nat->lock));
+
+    time_t now = time(NULL);
+    int waiting_connections;
+
+    /* iterate through the mappings and remove the timed out ones */
+    struct sr_nat_mapping *entry = nat->mappings;
+    struct sr_nat_mapping *previous_entry = NULL;
+
+    while (entry) {
+      time_difference = difftime(now, entry->last_updated);
+
+      /* type-specific actions and find out if any connections waiting on this entry (if TCP) */
+      waiting_connections = perform_type_action(nat, now, entry);
+
+      /* linked-list-specific actions */
+      if (time_difference > SR_NAT_TIMEOUT && !waiting_connections) { /* must put this var in .h file */
+        /* remove from the middle of linked list */
+        if (previous_entry) {
+          previous_entry->next = entry->next;
+          free(entry);
+          entry = entry->next;
+        }
+        /* make the next entry the new LL head */
+        else {
+          nat->mappings = entry->next;
+          free(entry);
+          entry = nat->mappings;
+        }
+      }
+      else {
+        /* proceed to the next entry */
+        previous_entry = entry;
+        entry = entry->next;
+      }
+    }
+
+    pthread_mutex_unlock(&(nat->lock));
+  }
+  return NULL;
 }
 
 /* Return a free port for the entry to use before being inserted to 
@@ -174,29 +304,6 @@ uint16_t fetch_port(struct sr_nat *nat, sr_nat_mapping_type type) {
   return htons(external_port);
 }
 
-void sr_handle_mapping_timeout(struct sr_nat *nat, time_t curtime) {
-
-  struct sr_nat_mapping *entry = nat->mappings;
-  struct sr_nat_mapping *prev_entry = NULL;
-  time_t entry_time = entry->last_updated;
-  while(entry) {
-    /* We check if the mapping entry is greater than 6 seconds
-     * if it is, then we delete it from the linked list using 
-     * 108 techniques, otherwise we proceed */
-    if(difftime(curtime, entry_time) > TIMEOUT) {
-      if(prev_entry) {
-        prev_entry->next = entry->next;
-        free(entry);
-        entry = prev_entry->next;
-      }
-      else {
-        nat->mappings = entry->next;
-        free(entry);
-        entry = nat->mappings;
-      }
-    }
-  }
-}
 
 int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
 
@@ -239,27 +346,6 @@ int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
   return pthread_mutex_destroy(&(nat->lock)) &&
     pthread_mutexattr_destroy(&(nat->attr));
 
-}
-
-void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
-  struct sr_nat *nat = (struct sr_nat *)nat_ptr;
-  while (1) {
-    sleep(1.0);
-    pthread_mutex_lock(&(nat->lock));
-
-    time_t curtime = time(NULL);
-
-    /* handle periodic tasks here */
-    sr_handle_unsolicited_timeout(nat, curtime);
-
-    /* Handle mapping timeout */
-    sr_handle_mapping_timeout(nat, curtime);
-
-    /* Handle TCP time outs. */
-
-    pthread_mutex_unlock(&(nat->lock));
-  }
-  return NULL;
 }
 
 /* Get the mapping associated with given external port.

@@ -11,14 +11,22 @@
 #define SYN_DEFINED 2
 #define SYN_ACK 3
 
+#define IN 0 /* inbound */
+#define OUT 1 /*outbound */
+
+#define SR_NAT_TIMEOUT 60
+#define SOME_OTHER_TIMEOUT 60
+#define SOME_OTHER_OTHER_TIMEOUT 60
+
 #include <inttypes.h>
 #include <time.h>
 #include <pthread.h>
 
 typedef enum {
   nat_mapping_icmp,
-  nat_mapping_tcp
+  nat_mapping_tcp,
   /* nat_mapping_udp, */
+  nat_unsolicited_packet
 } sr_nat_mapping_type;
 
 struct sr_nat_connection {
@@ -40,16 +48,18 @@ struct sr_nat_mapping {
   uint16_t aux_ext; /* external port or icmp id */
   time_t last_updated; /* use to timeout mappings */
   struct sr_nat_connection *conns; /* list of connections. null for ICMP */
+
   struct sr_nat_mapping *next;
 };
 
+/*
 struct sr_packet {
   unsigned int len;
   char *buf;
   time_t stamp;
   struct sr_packet *next; 
 };
-
+*/
 struct sr_nat {
   /* add any fields here */
   struct sr_nat_mapping *mappings;
