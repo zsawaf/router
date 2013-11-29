@@ -7,13 +7,12 @@
 #include <string.h>
 #include <stdio.h>
 #include <netinet/in.h>
+#include "sr_protocol.h"
 
 
 /* HELPER FUNCTIONS FOR router.c */
-struct sr_nat_connection *find_connection(struct sr_nat_connection *con, struct sr_nat_connection *target){
+struct sr_nat_connection *find_connection(struct sr_nat_connection *con, uint16_t external_port, uint32_t external_ip){
 
-  uint16_t external_port = target->external_port;
-  uint32_t external_ip = target->external_port;
   int found = 0;
   struct sr_nat_connection *copy = con;
   while(copy && (found == 0)) {
@@ -42,18 +41,15 @@ struct sr_nat_mapping *find_mapping(struct sr_nat *nat, struct sr_nat_mapping *t
 /* Functions used in router.c for inbound & outbound */
 
 struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat, 
-  struct sr_nat_mapping *entry, struct sr_nat_connection *target) {
+  struct sr_nat_mapping *entry, uint16_t external_port, uint32_t external_ip) {
 
   pthread_mutex_lock(&(nat->lock));
-
-  uint16_t external_port = target->external_port;
-  uint32_t external_ip = target->external_ip;
 
   struct sr_nat_connection *con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
   struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
 
   if(cur_entry) {
-    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, target);
+    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_port, external_ip);
     if (!cur_conn) {
       cur_conn = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
       cur_conn->stamp = time(NULL);
@@ -76,13 +72,13 @@ struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat,
 }
 
 struct sr_nat_connection * sr_lookup_connection(struct sr_nat *nat, struct sr_nat_mapping *entry,
-  struct sr_nat_connection *target) {
+  uint16_t external_port, uint32_t external_ip) {
 
     pthread_mutex_lock(&(nat->lock));
 
     struct sr_nat_connection *con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
     struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
-    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, target);
+    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_port, external_ip);
     if (cur_entry && cur_conn) {
       memcpy(con, cur_conn, sizeof(struct sr_nat_connection));
     }
@@ -113,7 +109,7 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
   }
 
   /* Now we do the same for connection */
-  struct sr_nat_connection *cur_con = find_connection(cur_entry->conns, con);
+  struct sr_nat_connection *cur_con = find_connection(cur_entry->conns, con->external_port, con->external_ip);
   if(!cur_con) {
     can_send = 0;
     pthread_mutex_unlock(&(nat->lock));
@@ -131,6 +127,9 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
       if(ack && cur_con->sent != SYN_ACK) {
         cur_con->sent = SYN_DEFINED;
         /* the sequence number thingy */
+      }
+      if(ack && cur_con->received == SYN_DEFINED && ntohl(sr_tcp_hdr->ack)) {
+        cur_con->received = SYN_ACK;
       }
     }
     else if(direction == INBOUND) {
