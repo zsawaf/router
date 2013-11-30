@@ -24,9 +24,8 @@
 
 typedef enum {
   nat_mapping_icmp,
-  nat_mapping_tcp,
+  nat_mapping_tcp
   /* nat_mapping_udp, */
-  nat_unsolicited_packet
 } sr_nat_mapping_type;
 
 struct sr_nat_connection {
@@ -37,6 +36,8 @@ struct sr_nat_connection {
   unsigned int state;
   unsigned int sent;
   unsigned int received;
+  uint32_t sequence_number_sent;
+  uint32_t sequence_number_received;
   struct sr_nat_connection *next;
 };
 
@@ -52,18 +53,18 @@ struct sr_nat_mapping {
   struct sr_nat_mapping *next;
 };
 
-/*
-struct sr_packet {
-  unsigned int len;
-  char *buf;
-  time_t stamp;
-  struct sr_packet *next; 
+struct sr_nat_unsol_pack { 
+  time_t last_updated; 
+  uint32_t IP_src; 
+  uint16_t port_src; 
+  uint16_t port_dst; 
+  struct sr_nat_unsol_pack *next; 
 };
-*/
+
 struct sr_nat {
   /* add any fields here */
   struct sr_nat_mapping *mappings;
-  struct sr_packet *syn_unsolicited;
+  struct sr_nat_unsol_pack *unsol_packs;
 
   /* threading */
   pthread_mutex_t lock;

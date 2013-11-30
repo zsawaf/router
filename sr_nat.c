@@ -40,6 +40,39 @@ struct sr_nat_mapping *find_mapping(struct sr_nat *nat, struct sr_nat_mapping *t
 
 /* Functions used in router.c for inbound & outbound */
 
+void free_matching_unsolocited_packets(struct sr_nat *nat, uint16_t port_src, uint32_t IP_src, uint16_t port_dst) {
+
+  struct sr_nat_unsol_pack *entry = nat->unsol_packs;
+  struct sr_nat_unsol_pack *previous_entry = NULL;
+  int deleted;
+  while (entry) {
+    /* look @ unsolocited only */
+    deleted = 0;
+    /* check for match */
+    if ((port_dst= entry->port_dst) &&
+      (IP_src == entry->IP_src) &&
+      (port_src == entry->port_src)) {
+      /* drop the packet */
+        deleted = 1;
+        if (previous_entry) {
+          previous_entry->next = entry->next;
+          free(entry);
+          entry = previous_entry->next;
+        }
+        else { /* delete head */
+          nat->unsol_packs = entry->next;
+          free(entry);
+          entry = nat->unsol_packs;
+        }
+      }
+    /* proceed onto next entry */
+    if (!deleted) {
+      previous_entry = entry;
+      entry = entry->next;
+    }
+  }
+}
+
 struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat, 
   struct sr_nat_mapping *entry, uint16_t external_port, uint32_t external_ip) {
 
@@ -65,6 +98,7 @@ struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat,
     memcpy(con, cur_conn, sizeof(struct sr_nat_connection));
 
     /* DROP THE MATCHING UNSOLICITED */
+    free_matching_unsolocited_packets(nat, cur_conn->external_port, cur_conn->external_ip, cur_entry->aux_ext);
   }
 
   pthread_mutex_unlock(&(nat->lock));
@@ -89,7 +123,7 @@ struct sr_nat_connection * sr_lookup_connection(struct sr_nat *nat, struct sr_na
 
 /* Return 0 if tcp can be forwarded, 1 otherwise */
 unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entry, struct sr_nat_connection *con, 
-  int state, int direction){
+  sr_tcp_hdr_t *tcp, int direction){
 
   pthread_mutex_lock(&(nat->lock));
 
@@ -97,7 +131,13 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
   uint8_t ack;
   uint8_t reset;
   uint8_t finish;
-  int can_send;
+  int can_send = 1;
+
+  syn = tcp->offset & TCP_SYN;
+  ack = tcp->offset & TCP_ACK;
+  reset = tcp->offset & TCP_RST;
+  finish = tcp->offset & TCP_FIN;
+
 
   /* Check if entry is in mapping table, if it isn't we cannot forward the tcp */
   struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
@@ -116,38 +156,73 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
     return can_send;
   }
 
-  syn = sr_tcp_hdr->offset & TCP_SYN;
-  ack = sr_tcp_hdr->offset & TCP_ACK;
-  reset = sr_tcp_hdr->offset & TCP_RST;
-  finish = sr_tcp_hdr->offset & TCP_FIN;
-
   if (cur_con->state == STATE_INIT) {
     /* handle inbound */
-    if(direction == OUTBOUND) {
+    if(direction == OUT) {
       if(ack && cur_con->sent != SYN_ACK) {
         cur_con->sent = SYN_DEFINED;
-        /* the sequence number thingy */
+        /* the sequence number sent */
+        cur_con->sequence_number_sent = tcp->seq;
+
       }
-      if(ack && cur_con->received == SYN_DEFINED && ntohl(sr_tcp_hdr->ack)) {
+      if(ack && cur_con->received == SYN_DEFINED && (ntohl(tcp->ack) == ntohl(cur_con->sequence_number_received) + 1)) {
         cur_con->received = SYN_ACK;
       }
     }
-    else if(direction == INBOUND) {
-      // might need to check for sent syn number as well
-      if(cur->sent && ack == SYN_DEFINED && ntohl(sr_tcp_hdr->ack)) {
+    else if(direction == IN) {
+      /* might need to check for sent syn number as well */
+      if(cur_con->sent && ack == SYN_DEFINED && (ntohl(tcp->ack) == ntohl(cur_con->sequence_number_sent) + 1)) {
         cur_con->sent = SYN_ACK;
       }
       if(cur_con->received && syn != SYN_ACK) {
         cur_con->received = SYN_DEFINED;
+        cur_con->sequence_number_received = tcp->seq;
         /* set sequence number tcp recieved*/
       }
     }
+
+    if(!syn && !ack) {
+      can_send=0;
+    }
+    if (cur_con->received == SYN_ACK && cur_con->sent == SYN_ACK){
+      cur_con->state = STATE_CONNECTED;
+    }
+    else if (cur_con->state == STATE_CONNECTED) {
+      if (reset || finish) {
+        cur_con->state = STATE_END;
+      }
+    }
   }
+  cur_con->stamp = time(NULL);
 
   pthread_mutex_unlock(&(nat->lock));
 
-  return 0;
+  return can_send;
 }
+
+void insert_unsolicited_packet(struct sr_nat *nat, uint8_t *packet, unsigned int len) {
+  /* extract the useful data */
+
+  pthread_mutex_lock(&(nat->lock));
+
+  sr_ip_hdr_t* IP_header = (sr_ip_hdr_t*)(packet+sizeof(sr_ethernet_hdr_t));
+  sr_tcp_hdr_t* TCP_header = (sr_tcp_hdr_t*) (packet + sizeof(sr_ip_hdr_t)+sizeof(sr_ethernet_hdr_t));
+  uint32_t IP_src = IP_header->ip_src;
+  uint16_t port_src = TCP_header->src_port;
+  uint16_t port_dst = TCP_header->dst_port;
+
+
+  struct sr_nat_unsol_pack *entry = (struct sr_nat_unsol_pack *) malloc(sizeof(struct sr_nat_unsol_pack));
+  entry->IP_src = IP_src;
+  entry->port_src = port_src;
+  entry->port_dst = port_dst;
+  entry->last_updated = time(NULL);
+  entry->next = nat->unsol_packs;
+
+  nat->unsol_packs = entry;
+  pthread_mutex_unlock(&(nat->lock));
+}
+
 
 /* HELPER FUNCTIONS FOR sr_nat.c */
 
@@ -186,6 +261,39 @@ void timeout_tcp_connections(struct sr_nat *nat, struct sr_nat_mapping *TCP_entr
   } 
 }
 
+void sr_handle_unsolicited_timeout(struct sr_nat *nat, time_t now){
+      /* iterate through the unsolicited and remove the timed out ones */
+    struct sr_nat_unsol_pack *entry = nat->unsol_packs;
+    struct sr_nat_unsol_pack *previous_entry = NULL;
+    time_t time_difference;
+
+    while (entry) {
+      time_difference = difftime(now, entry->last_updated);
+
+      /* linked-list-specific actions */
+      if (time_difference > SR_NAT_TIMEOUT) { /* must put this var in .h file */
+        /* SEND ICMP DEST UNREACH MSG
+        remove from the middle of linked list */
+        if (previous_entry) {
+          previous_entry->next = entry->next;
+          free(entry);
+          entry = entry->next;
+        }
+        /* make the next entry the new LL head */
+        else {
+          nat->unsol_packs = entry->next;
+          free(entry);
+          entry = nat->unsol_packs;
+        }
+      }
+      else {
+        /* proceed to the next entry */
+        previous_entry = entry;
+        entry = entry->next;
+      }
+    }
+}
+
 int perform_type_action(struct sr_nat *nat, time_t now, struct sr_nat_mapping *entry) {
   int waiting_connections = 0;
   /* type-specific actions */
@@ -195,10 +303,10 @@ int perform_type_action(struct sr_nat *nat, time_t now, struct sr_nat_mapping *e
       waiting_connections = 1;
     }
   }
-  else if (entry->type == nat_unsolicited_packet) {
-    /* send destination unreachable to host */
+  /*else if (entry->type == nat_unsolicited_packet) {
+     send destination unreachable to host 
     printf("Send destination unreachable\n");
-  }
+  }*/
   return waiting_connections;
 }
 
@@ -214,6 +322,11 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
 
     time_t now = time(NULL);
     int waiting_connections;
+
+    /* Handle unsolicited timeouts */
+    sr_handle_unsolicited_timeout(nat, now);
+
+    /* Handle mapping timeout */
 
     /* iterate through the mappings and remove the timed out ones */
     struct sr_nat_mapping *entry = nat->mappings;
