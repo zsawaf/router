@@ -66,10 +66,11 @@ int main(int argc, char **argv)
     unsigned int topo = DEFAULT_TOPO;
     char *logfile = 0;
     struct sr_instance sr;
+    int nat=0,icmp_timeout = 60,tcp_established_timeout = 7440 ,tcp_transitory_timeout = 300;
 
     printf("Using %s\n", VERSION_INFO);
 
-    while ((c = getopt(argc, argv, "hs:v:p:u:t:r:l:T:")) != EOF)
+    while ((c = getopt(argc, argv, "hs:v:p:u:t:r:l:T:nI:E:R")) != EOF)
     {
         switch (c)
         {
@@ -101,11 +102,29 @@ int main(int argc, char **argv)
             case 'T':
                 template = optarg;
                 break;
+            case 'n':
+                nat = 1;
+                break;
+            case 'I':
+                icmp_timeout = atoi((char *) optarg);
+                break;
+            case 'E':
+                tcp_established_timeout = atoi((char *) optarg);
+                break;
+            case 'R':
+                tcp_transitory_timeout = atoi((char *) optarg);
+                break;
         } /* switch */
     } /* -- while -- */
 
+
+                
     /* -- zero out sr instance -- */
     sr_init_instance(&sr);
+    /* -- set up nat and icmp,tcp timeout--*/
+    if(nat==1)
+    {sr.nat_active = 1;
+    }
 
     /* -- set up routing table from file -- */
     if(template == NULL) {
@@ -249,6 +268,10 @@ static void sr_init_instance(struct sr_instance* sr)
     sr->if_list = 0;
     sr->routing_table = 0;
     sr->logfile = 0;
+
+    /*Make NAT disabled by default*/
+    sr->nat_active = 0;
+
 } /* -- sr_init_instance -- */
 
 /*-----------------------------------------------------------------------------

@@ -4,6 +4,33 @@
 #include "sr_protocol.h"
 #include "sr_utils.h"
 
+void print_hdr_tcp(uint8_t *buf) {
+  sr_tcp_hdr_t *tcphdr = (sr_tcp_hdr_t *)(buf);
+  fprintf(stderr, "TCP header:\n");
+
+  fprintf(stderr, "\tsource port: %d\n", ntohs(tcphdr->src_port));
+  fprintf(stderr, "\tdest port: %d\n", ntohs(tcphdr->dst_port));
+  fprintf(stderr, "\tseqno: %u\n", ntohl(tcphdr->seq));
+  fprintf(stderr, "\tackno: %u\n", ntohl(tcphdr->ack));
+  fprintf(stderr, "\theader length: %d\n", tcphdr->tcp_hl);
+
+  fprintf(stderr, "\tcontrol bits (6-bits): %d\n", tcphdr->ctrl & TCP_CTRLMASK);
+  if (tcphdr->ctrl & TCP_URG)
+    fprintf(stderr, "\t\tControl flag: URG\n");
+  else if (tcphdr->ctrl & TCP_ACK)
+    fprintf(stderr, "\t\tControl flag: ACK\n");
+  else if (tcphdr->ctrl & TCP_PSH)
+    fprintf(stderr, "\t\tControl flag: PSH\n");
+  else if (tcphdr->ctrl & TCP_RST)
+    fprintf(stderr, "\t\tControl flag: RST\n");
+  else if (tcphdr->ctrl & TCP_SYN)
+    fprintf(stderr, "\t\tControl flag: SYN\n");
+  else if (tcphdr->ctrl & TCP_FIN)
+    fprintf(stderr, "\t\tControl flag: FIN\n");
+
+  fprintf(stderr, "\twindow: %d\n", ntohs(tcphdr->window));
+  fprintf(stderr, "\tchecksum: %x\n", ntohs(tcphdr->sum));
+}
 
 uint16_t cksum (const void *_data, int len) {
   const uint8_t *data = _data;

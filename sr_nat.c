@@ -1,4 +1,3 @@
-
 #include <signal.h>
 #include <assert.h>
 #include "sr_nat.h"
@@ -14,14 +13,22 @@
 struct sr_nat_connection *find_connection(struct sr_nat_connection *con, uint16_t external_port, uint32_t external_ip){
 
   int found = 0;
-  struct sr_nat_connection *copy = con;
-  while(copy && (found == 0)) {
-    if(copy->external_ip == external_ip && copy->external_port == external_port) {
+  
+  printf("\n\nHEEEEERREEEgggggg@@@@@@@@@@@@@n\n\n");
+  while(con && (found == 0)) {
+    if(con->external_ip == external_ip && con->external_port == external_port) {
       found = 1;
+      printf("/////////////////////////////////////////found");
     }
-    copy = copy->next;
+    else
+    con = con->next;
   }
-  return copy; 
+  if(con)
+    printf("/////////////////////////////////////////not null");
+else
+      printf("///////////////////////////////////////// null");
+
+  return con;
 }
 
 struct sr_nat_mapping *find_mapping(struct sr_nat *nat, struct sr_nat_mapping *target) {
@@ -33,6 +40,7 @@ struct sr_nat_mapping *find_mapping(struct sr_nat *nat, struct sr_nat_mapping *t
 
       found = 1;
     }
+    else
     entry = entry->next;
   }
   return entry;
@@ -73,16 +81,17 @@ void free_matching_unsolocited_packets(struct sr_nat *nat, uint16_t port_src, ui
   }
 }
 
-struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat, 
+struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat,
   struct sr_nat_mapping *entry, uint16_t external_port, uint32_t external_ip) {
 
   pthread_mutex_lock(&(nat->lock));
-
-  struct sr_nat_connection *con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
+printf("inserteeeeeeingngnngng@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
+  
+  struct sr_nat_connection *con = NULL;
   struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
-
+struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_port, external_ip);
   if(cur_entry) {
-    struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_port, external_ip);
+    
     if (!cur_conn) {
       cur_conn = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
       cur_conn->stamp = time(NULL);
@@ -93,15 +102,16 @@ struct sr_nat_connection *sr_insert_connection(struct sr_nat *nat,
       cur_conn->received = SYN_UNDEFINED;
       cur_conn->next = cur_entry->conns;
       cur_entry->conns = cur_conn;
+       printf("inserteeeeeedd@@@@@@@@@@@@@@@@@@@@@@@@@@@@@\n");
     }
-
+    con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
     memcpy(con, cur_conn, sizeof(struct sr_nat_connection));
-
+   
     /* DROP THE MATCHING UNSOLICITED */
     free_matching_unsolocited_packets(nat, cur_conn->external_port, cur_conn->external_ip, cur_entry->aux_ext);
   }
 
-  pthread_mutex_unlock(&(nat->lock));
+  
   return con;
 }
 
@@ -110,19 +120,25 @@ struct sr_nat_connection * sr_lookup_connection(struct sr_nat *nat, struct sr_na
 
     pthread_mutex_lock(&(nat->lock));
 
-    struct sr_nat_connection *con = (struct sr_nat_connection *)malloc(sizeof(struct sr_nat_connection));
+    struct sr_nat_connection *con = NULL;
+    printf("\n\nHEEEEERREEE@@@n\n\n");
     struct sr_nat_mapping *cur_entry = find_mapping(nat, entry);
+    printf("\n\nHEEEEERREEEbbbn %i %i\n\n",external_port,external_ip);
+    if(cur_entry)
+      {printf("ENTRY NOT NULL");}else printf("ENTRY IS NULL");
     struct sr_nat_connection *cur_conn = find_connection(cur_entry->conns, external_port, external_ip);
+    printf("\n\nHEEEEERREEEggggggn\n\n");
     if (cur_entry && cur_conn) {
+      con = (struct sr_nat_connection *) malloc(sizeof(struct sr_nat_connection));
       memcpy(con, cur_conn, sizeof(struct sr_nat_connection));
     }
-
+    
     pthread_mutex_unlock(&(nat->lock));
     return con;
 }
 
 /* Return 0 if tcp can be forwarded, 1 otherwise */
-unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entry, struct sr_nat_connection *con, 
+unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entry, struct sr_nat_connection *con,
   sr_tcp_hdr_t *tcp, int direction){
 
   pthread_mutex_lock(&(nat->lock));
@@ -133,10 +149,10 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
   uint8_t finish;
   int can_send = 1;
 
-  syn = tcp->offset & TCP_SYN;
-  ack = tcp->offset & TCP_ACK;
-  reset = tcp->offset & TCP_RST;
-  finish = tcp->offset & TCP_FIN;
+  syn = tcp->ctrl & TCP_SYN;
+  ack = tcp->ctrl & TCP_ACK;
+  reset = tcp->ctrl & TCP_RST;
+  finish = tcp->ctrl & TCP_FIN;
 
 
   /* Check if entry is in mapping table, if it isn't we cannot forward the tcp */
@@ -147,15 +163,15 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
     pthread_mutex_unlock(&(nat->lock));
     return can_send;
   }
-
+printf("@@@@OUTXXXXXX1\n");
   /* Now we do the same for connection */
   struct sr_nat_connection *cur_con = find_connection(cur_entry->conns, con->external_port, con->external_ip);
-  if(!cur_con) {
+   if(!cur_con) {printf("@@@@OUTXXXXXX2\n");
     can_send = 0;
     pthread_mutex_unlock(&(nat->lock));
     return can_send;
   }
-
+printf("@@@@OUTXXXXXX451\n");
   if (cur_con->state == STATE_INIT) {
     /* handle inbound */
     if(direction == OUT) {
@@ -181,7 +197,7 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
       }
     }
 
-    if(!syn && !ack) {
+    if(!syn && !ack) {printf("@@@@OUTXXXXXX3\n");
       can_send=0;
     }
     if (cur_con->received == SYN_ACK && cur_con->sent == SYN_ACK){
@@ -196,7 +212,7 @@ unsigned int forward_tcp_checker(struct sr_nat *nat, struct sr_nat_mapping *entr
   cur_con->stamp = time(NULL);
 
   pthread_mutex_unlock(&(nat->lock));
-
+printf("@@@@OUTXXXXXX4\n");
   return can_send;
 }
 
@@ -238,10 +254,10 @@ void timeout_tcp_connections(struct sr_nat *nat, struct sr_nat_mapping *TCP_entr
 
     /* Set connection timeout based on state */
     if (entry->state == STATE_INIT || entry->state == STATE_END) {
-      timeout = SOME_OTHER_TIMEOUT;
+      timeout = TCP_TRAN_TIMEOUT;
     }
     else { /* connection is established */
-      timeout = SOME_OTHER_OTHER_TIMEOUT;
+      timeout = TCP_ESTB_TIMEOUT;
     }
 
     if (time_difference > timeout) {
@@ -258,7 +274,7 @@ void timeout_tcp_connections(struct sr_nat *nat, struct sr_nat_mapping *TCP_entr
         entry = TCP_entry->conns;
       }
     }
-  } 
+  }
 }
 
 void sr_handle_unsolicited_timeout(struct sr_nat *nat, time_t now){
@@ -271,9 +287,9 @@ void sr_handle_unsolicited_timeout(struct sr_nat *nat, time_t now){
       time_difference = difftime(now, entry->last_updated);
 
       /* linked-list-specific actions */
-      if (time_difference > SR_NAT_TIMEOUT) { /* must put this var in .h file */
+      if (time_difference > UNSOL_TIMEOUT) { /* must put this var in .h file */
         /* SEND ICMP DEST UNREACH MSG
-        remove from the middle of linked list */
+remove from the middle of linked list */
         if (previous_entry) {
           previous_entry->next = entry->next;
           free(entry);
@@ -304,15 +320,15 @@ int perform_type_action(struct sr_nat *nat, time_t now, struct sr_nat_mapping *e
     }
   }
   /*else if (entry->type == nat_unsolicited_packet) {
-     send destination unreachable to host 
-    printf("Send destination unreachable\n");
-  }*/
+send destination unreachable to host
+printf("Send destination unreachable\n");
+}*/
   return waiting_connections;
 }
 
 /* When an unsolicited SYN is timed out, then we want to drop it
- * from the Linked List */
-void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
+* from the Linked List */
+void *sr_nat_timeout(void *nat_ptr) { /* Periodic Timout handling */
   struct sr_nat *nat = (struct sr_nat *)nat_ptr;
   double time_difference;
 
@@ -339,7 +355,7 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
       waiting_connections = perform_type_action(nat, now, entry);
 
       /* linked-list-specific actions */
-      if (time_difference > SR_NAT_TIMEOUT && !waiting_connections) { /* must put this var in .h file */
+      if (time_difference > ICMP_TIMEOUT && !waiting_connections) { /* must put this var in .h file */
         /* remove from the middle of linked list */
         if (previous_entry) {
           previous_entry->next = entry->next;
@@ -365,15 +381,15 @@ void *sr_nat_timeout(void *nat_ptr) {  /* Periodic Timout handling */
   return NULL;
 }
 
-/* Return a free port for the entry to use before being inserted to 
- * the mapping table */
+/* Return a free port for the entry to use before being inserted to
+* the mapping table */
 uint16_t fetch_port(struct sr_nat *nat, sr_nat_mapping_type type) {
 
   struct sr_nat_mapping *entry = nat->mappings;
   uint16_t external_port;
   
-  /* Check if the type is ICMP or TCP and assign the port number 
-   * respectively */
+  /* Check if the type is ICMP or TCP and assign the port number
+* respectively */
   if (type == nat_mapping_tcp) {
     external_port = nat->tcp_port;
   }
@@ -448,7 +464,7 @@ int sr_nat_init(struct sr_nat *nat) { /* Initializes the nat */
 }
 
 
-int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
+int sr_nat_destroy(struct sr_nat *nat) { /* Destroys the nat (free memory) */
 
   pthread_mutex_lock(&(nat->lock));
 
@@ -461,7 +477,7 @@ int sr_nat_destroy(struct sr_nat *nat) {  /* Destroys the nat (free memory) */
 }
 
 /* Get the mapping associated with given external port.
-   You must free the returned structure if it is not NULL. */
+You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
     uint16_t aux_ext, sr_nat_mapping_type type ) {
 
@@ -483,6 +499,7 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
   }
 
   if (found == 1) {
+    printf("Mapping found\n");
     entry->last_updated = time(NULL);
     copy = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
     memcpy(copy, entry, sizeof(struct sr_nat_mapping));
@@ -493,7 +510,7 @@ struct sr_nat_mapping *sr_nat_lookup_external(struct sr_nat *nat,
 }
 
 /* Get the mapping associated with given internal (ip, port) pair.
-   You must free the returned structure if it is not NULL. */
+You must free the returned structure if it is not NULL. */
 struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
   uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
 
@@ -515,6 +532,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
   }
 
   if (found == 1) {
+    printf("Mapping found\n");
     entry->last_updated = time(NULL);
     copy = (struct sr_nat_mapping *)malloc(sizeof(struct sr_nat_mapping));
     memcpy(copy, entry, sizeof(struct sr_nat_mapping));
@@ -525,7 +543,7 @@ struct sr_nat_mapping *sr_nat_lookup_internal(struct sr_nat *nat,
 }
 
 /* Insert a new mapping into the nat's mapping table.
-   Actually returns a copy to the new mapping, for thread safety.
+Actually returns a copy to the new mapping, for thread safety.
 */
 struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   uint32_t ip_int, uint16_t aux_int, sr_nat_mapping_type type ) {
@@ -545,7 +563,7 @@ struct sr_nat_mapping *sr_nat_insert_mapping(struct sr_nat *nat,
   entry->next = nat->mappings; /* insert it at the head like arpcache */
 
   entry->ip_ext = nat->ip_external; /* always going to be the same for this NAT (that's the pont!)*/
-  entry->aux_ext = fetch_port(nat, type); 
+  entry->aux_ext = fetch_port(nat, type);
 
   nat->mappings = entry; /*update linked list */
 

@@ -12,12 +12,10 @@
 #include <netinet/in.h>
 #include <sys/time.h>
 #include <stdio.h>
-
+#include <stdlib.h>
 #include "sr_protocol.h"
 #include "sr_arpcache.h"
-#include "sr_rt.h"
-#include "sr_if.h"
-
+#include "sr_nat.h"
 
 /* we dont like this debug , but what to do for varargs ? */
 #ifdef _DEBUG_
@@ -32,11 +30,6 @@
 
 #define INIT_TTL 255
 #define PACKET_DUMP_SIZE 1024
-
-
-/* constants */
-#define SR_ETH_HDR_LEN    sizeof(sr_ethernet_hdr_t)
-#define SR_ARP_HDR_LEN    sizeof(sr_arp_hdr_t)
 
 /* forward declare */
 struct sr_if;
@@ -62,6 +55,9 @@ struct sr_instance
     struct sr_arpcache cache;   /* ARP cache */
     pthread_attr_t attr;
     FILE* logfile;
+    /*NAT*/
+    struct sr_nat nat;
+    int nat_active;
 };
 
 /* -- sr_main.c -- */
@@ -76,27 +72,44 @@ int sr_read_from_server(struct sr_instance* );
 void sr_init(struct sr_instance* );
 void sr_handlepacket(struct sr_instance* , uint8_t * , unsigned int , char* );
 
-
-
 /* -- sr_if.c -- */
 void sr_add_interface(struct sr_instance* , const char* );
 void sr_set_ether_ip(struct sr_instance* , uint32_t );
 void sr_set_ether_addr(struct sr_instance* , const unsigned char* );
-void sr_print_if_list(struct sr_instance* );
+void sr_print_if_list(struct sr_instance*);
+/*NEW FUNCTIONS*/
+struct sr_if* findInterface(uint32_t,struct sr_instance*);
+void handle_arp(struct sr_instance*,uint8_t *);
+void handle_ip(struct sr_instance*,uint8_t *,unsigned int);
+void handle_nat_ip(struct sr_instance*,uint8_t *,unsigned int,struct sr_if*);
+void handle_nat_inbound(struct sr_instance*,uint8_t *,unsigned int,struct sr_if*);
+void handle_nat_outbound(struct sr_instance*,uint8_t *,unsigned int,struct sr_if*);
+uint8_t * generate_arp_reply(sr_arp_hdr_t *,uint32_t,unsigned char*);
+void create_ethernet_header(uint8_t*,const uint8_t*,const uint8_t*,uint16_t);
+void send_echo_reply(struct sr_instance*,uint32_t,uint32_t,sr_icmp_hdr_t*,unsigned int);
+void create_ip_header(sr_ip_hdr_t*,uint32_t,int,uint32_t);
+void ethernet_with_arp(struct sr_instance*,uint8_t*,unsigned int);
+struct sr_rt* longest_prefix_match(struct sr_instance*,uint32_t);
+uint16_t tcpcksum(sr_ip_hdr_t*, uint8_t *, unsigned int); 
+void send_icmp(struct sr_instance*,uint32_t,uint8_t*,unsigned int,unsigned int);
+#define ETHERNET_ADDRESS_LENGTH 6
+#define ETHERNET_HEADER_LENGTH sizeof(sr_ethernet_hdr_t)
+#define ARP_HEADER_LENGTH sizeof(sr_arp_hdr_t)
 
-/* added functions */
-struct sr_rt * sr_search_ip_prfx(struct sr_instance * sr, uint32_t ip);
 void sr_arp_broadcast(struct sr_instance *sr, struct sr_arpreq *arpreq);
 void send_waiting_packets(struct sr_instance *sr, struct sr_arpreq *arpreq);
 void generate_arp_request(struct sr_instance *sr, struct sr_arpreq *arpreq);
-void handle_ip(struct sr_instance* sr,uint8_t * packet);
 void handle_arp(struct sr_instance* sr,uint8_t * packet);
-void create_ethernet_header(uint8_t* reply, const uint8_t* destination, const uint8_t* sender, uint16_t type);
-uint8_t * generate_arp_reply(sr_arp_hdr_t * request,uint32_t ip,unsigned char* mac);
-struct sr_if* findInterface(uint32_t ip,struct sr_instance* sr);
 void handle_reply(struct sr_instance* sr,uint8_t * packet);
-void enqueue_packet(struct sr_instance* sr, uint32_t destination_ip, uint8_t *packet);
-unsigned int ethertype_len(uint16_t ethertype);
-unsigned int check_len(uint8_t *packet, unsigned int len);
-unsigned int check_check_sum(uint8_t *packet);
+
+unsigned int check_check_sum(uint8_t *);
+unsigned int check_len(uint8_t *, unsigned int);
+unsigned int ethertype_len(uint16_t);
+
+/* constants */
+#define SR_ETH_HDR_LEN sizeof(sr_ethernet_hdr_t)
+#define SR_ARP_HDR_LEN sizeof(sr_arp_hdr_t)
+
+
+
 #endif /* SR_ROUTER_H */
